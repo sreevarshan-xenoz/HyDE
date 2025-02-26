@@ -4,69 +4,24 @@
 #|-/ /--| kRHYME7                      |-/ /--|#
 #|/ /---+------------------------------+/ /---|#
 
-print_prompt() {
-    [[ "${verbose}" == "false" ]] && return 0
-    while (("$#")); do
-        case "$1" in
-        -r)
-            echo -ne "\e[31m$2\e[0m"
-            shift 2
-            ;; # Red
-        -g)
-            echo -ne "\e[32m$2\e[0m"
-            shift 2
-            ;; # Green
-        -y)
-            echo -ne "\e[33m$2\e[0m"
-            shift 2
-            ;; # Yellow
-        -b)
-            echo -ne "\e[34m$2\e[0m"
-            shift 2
-            ;; # Blue
-        -m)
-            echo -ne "\e[35m$2\e[0m"
-            shift 2
-            ;; # Magenta
-        -c)
-            echo -ne "\e[36m$2\e[0m"
-            shift 2
-            ;; # Cyan
-        -w)
-            echo -ne "\e[37m$2\e[0m"
-            shift 2
-            ;; # White
-        -n)
-            echo -ne "\e[96m$2\e[0m"
-            shift 2
-            ;; # Neon
-        *)
-            echo -ne "$1"
-            shift
-            ;;
-        esac
-    done
-    echo ""
-}
-
 scrDir=$(dirname "$(realpath "$0")")
 # shellcheck disable=SC1091
 # if [ $? -ne 0 ]; then
-if ! source "${scrDir}/global_fn.sh"; then
-    echo "Error: unable to source global_fn.sh..."
+if ! source "${scrDir}/globalcontrol.sh"; then
+    echo "Error: unable to source globalcontrol.sh..."
     exit 1
 fi
 
-verbose="${4}"
+export VERBOSE="${4}"
 set +e
 
 # error function
 ask_help() {
     cat <<HELP
 Usage:
-    $(print_prompt "$0 " -y "Theme-Name " -c "/Path/to/Configs")
-    $(print_prompt "$0 " -y "Theme-Name " -c "https://github.com/User/Repository")
-    $(print_prompt "$0 " -y "Theme-Name " -c "https://github.com/User/Repository/tree/branch")
+    $(print_log "$0 " -y "Theme-Name " -c "/Path/to/Configs")
+    $(print_log "$0 " -y "Theme-Name " -c "https://github.com/User/Repository")
+    $(print_log "$0 " -y "Theme-Name " -c "https://github.com/User/Repository/tree/branch")
 
 Options:
     'export FULL_THEME_UPDATE=true'       Overwrites the archived files (useful for updates and changes in archives)
@@ -135,27 +90,27 @@ else
     Theme_Dir="${cacheDir}/themepatcher/${branch_dir}-${Git_Owner}"
 
     if [ -d "$Theme_Dir" ]; then
-        print_prompt "Directory $Theme_Dir already exists. Using existing directory."
+        print_log "Directory $Theme_Dir already exists. Using existing directory."
         if cd "$Theme_Dir"; then
             git fetch --all &>/dev/null
             git reset --hard "@{upstream}" &>/dev/null
             cd - &>/dev/null || exit
         else
-            print_prompt -y "Could not navigate to $Theme_Dir. Skipping git pull."
+            print_log -y "Could not navigate to $Theme_Dir. Skipping git pull."
         fi
     else
-        print_prompt "Directory $Theme_Dir does not exist. Cloning repository into new directory."
+        print_log "Directory $Theme_Dir does not exist. Cloning repository into new directory."
         if ! git clone -b "$branch" --depth 1 "$Git_Repo" "$Theme_Dir" &>/dev/null; then
-            print_prompt "Git clone failed"
+            print_log "Git clone failed"
             exit 1
         fi
     fi
 fi
 
-print_prompt "Patching" -g " --// ${Fav_Theme} //-- " "from " -b "${Theme_Dir}\n"
+print_log "Patching" -g " --// ${Fav_Theme} //-- " "from " -b "${Theme_Dir}\n"
 
 Fav_Theme_Dir="${Theme_Dir}/Configs/.config/hyde/themes/${Fav_Theme}"
-[ ! -d "${Fav_Theme_Dir}" ] && print_prompt -r "[ERROR] " "'${Fav_Theme_Dir}'" -y " Do not Exist" && exit 1
+[ ! -d "${Fav_Theme_Dir}" ] && print_log -r "[ERROR] " "'${Fav_Theme_Dir}'" -y " Do not Exist" && exit 1
 
 # config=$(find "${dcolDir}" -type f -name "*.dcol" | awk -v favTheme="${Fav_Theme}" -F 'theme/' '{gsub(/\.dcol$/, ".theme"); print ".config/hyde/themes/" favTheme "/" $2}')
 config=$(find "${wallbashDirs[@]}" -type f -path "*/theme*" -name "*.dcol" 2>/dev/null | awk '!seen[substr($0, match($0, /[^/]+$/))]++' | awk -v favTheme="${Fav_Theme}" -F 'theme/' '{gsub(/\.dcol$/, ".theme"); print ".config/hyde/themes/" favTheme "/" $2}')
@@ -163,16 +118,16 @@ restore_list=""
 
 while IFS= read -r fileCheck; do
     if [[ -e "${Theme_Dir}/Configs/${fileCheck}" ]]; then
-        print_prompt -g "[found] " "${fileCheck}"
+        print_log -g "[found] " "${fileCheck}"
         fileBase=$(basename "${fileCheck}")
         fileDir=$(dirname "${fileCheck}")
         restore_list+="Y|Y|\${HOME}/${fileDir}|${fileBase}|hyprland\n"
     else
-        print_prompt -y "[warn] " "${fileCheck} --> do not exist in ${Theme_Dir}/Configs/"
+        print_log -y "[warn] " "${fileCheck} --> do not exist in ${Theme_Dir}/Configs/"
     fi
 done <<<"$config"
 if [ -f "${Fav_Theme_Dir}/theme.dcol" ]; then
-    print_prompt -n "[note] " "found theme.dcol to override wallpaper dominant colors"
+    print_log -n "[note] " "found theme.dcol to override wallpaper dominant colors"
     restore_list+="Y|Y|\${HOME}/.config/hyde/themes/${Fav_Theme}|theme.dcol|hyprland\n"
 fi
 readonly restore_list
@@ -182,13 +137,13 @@ wallpapers=$(
     find "${Fav_Theme_Dir}" -type f \( -iname "*.gif" -o -iname "*.jpg" -o -iname "*.jpeg" -o -iname "*.png" \) ! -path "*/logo/*"
 )
 wpCount="$(wc -l <<<"${wallpapers}")"
-{ [ -z "${wallpapers}" ] && print_prompt -r "[ERROR] " "No wallpapers found" && exit_flag=true; } || { readonly wallpapers && print_prompt -g "\n[OK] " "wallpapers :: [count] ${wpCount} (.gif+.jpg+.jpeg+.png)"; }
+{ [ -z "${wallpapers}" ] && print_log -r "[ERROR] " "No wallpapers found" && exit_flag=true; } || { readonly wallpapers && print_log -g "\n[OK] " "wallpapers :: [count] ${wpCount} (.gif+.jpg+.jpeg+.png)"; }
 
 # Get logos
 if [ -d "${Fav_Theme_Dir}/logo" ]; then
     logos=$(find "${Fav_Theme_Dir}/logo" -type f \( -iname "*.gif" -o -iname "*.jpg" -o -iname "*.jpeg" -o -iname "*.png" \))
     logosCount="$(wc -l <<<"${logos}")"
-    { [ -z "${logos}" ] && print_prompt -y "[warn] " "No logos found"; } || { readonly logos && print_prompt -g "[OK] " "logos :: [count] ${logosCount}\n"; }
+    { [ -z "${logos}" ] && print_log -y "[warn] " "No logos found"; } || { readonly logos && print_log -g "[OK] " "logos :: [count] ${logosCount}\n"; }
 fi
 
 # parse thoroughly 😁
@@ -245,17 +200,17 @@ check_tars() {
     if [ -n "${gsVal}" ]; then
 
         if [[ "${gsVal}" =~ ^\$\{?[A-Za-z_][A-Za-z0-9_]*\}?$ ]]; then # check is a variable is set into a variable eg $FONT=$DOCUMENT_FONT
-            print_prompt -y "[warn] " "Variable ${gsVal} detected,be sure ${gsVal} is set in hypr.theme, skipping check"
+            print_log -y "[warn] " "Variable ${gsVal} detected,be sure ${gsVal} is set in hypr.theme, skipping check"
         else
-            print_prompt -g "[OK] " "hypr.theme :: [${gsLow}]" -b " ${gsVal}"
+            print_log -g "[OK] " "hypr.theme :: [${gsLow}]" -b " ${gsVal}"
             trArc="$(find "${Theme_Dir}" -type f -name "${inVal}_*.tar.*")"
             [ -f "${trArc}" ] && [ "$(echo "${trArc}" | wc -l)" -eq 1 ] && trVal="$(basename "$(tar -tf "${trArc}" | cut -d '/' -f1 | sort -u)")" && trVal="$(echo "${trVal}" | grep -w "${gsVal}")"
-            print_prompt -g "[OK] " "../*.tar.* :: [${gsLow}]" -b " ${trVal}"
-            [ "${trVal}" != "${gsVal}" ] && print_prompt -r "[ERROR] " "${gsLow} set in hypr.theme does not exist in ${inVal}_*.tar.*" && exit_flag=true
+            print_log -g "[OK] " "../*.tar.* :: [${gsLow}]" -b " ${trVal}"
+            [ "${trVal}" != "${gsVal}" ] && print_log -r "[ERROR] " "${gsLow} set in hypr.theme does not exist in ${inVal}_*.tar.*" && exit_flag=true
         fi
     else
-        [ "${2}" == "--mandatory" ] && print_prompt -r "[ERROR] " "hypr.theme :: [${gsLow}] Not Found" && exit_flag=true && return 0
-        print_prompt -y "[warn] " "hypr.theme :: [${gsLow}] Not Found, don't worry if it's not needed"
+        [ "${2}" == "--mandatory" ] && print_log -r "[ERROR] " "hypr.theme :: [${gsLow}] Not Found" && exit_flag=true && return 0
+        print_log -y "[warn] " "hypr.theme :: [${gsLow}] Not Found, don't worry if it's not needed"
     fi
 }
 
@@ -269,7 +224,7 @@ check_tars Monospace-Font
 check_tars Bar-Font
 check_tars Menu-Font
 check_tars Notification-Font
-print_prompt "" && [[ "${exit_flag}" = true ]] && exit 1
+print_log "" && [[ "${exit_flag}" = true ]] && exit 1
 
 # extract arcs
 declare -A archive_map=(
@@ -291,28 +246,28 @@ for prefix in "${!archive_map[@]}"; do
     tgtDir="${archive_map[$prefix]}"
 
     if [[ "${tgtDir}" =~ /(usr|usr\/local)\/share/ && -d /run/current-system/sw/share/ ]]; then
-        print_prompt -y "Detected NixOS system, changing target to /run/current-system/sw/share/..."
+        print_log -y "Detected NixOS system, changing target to /run/current-system/sw/share/..."
         tgtDir="/run/current-system/sw/share/"
     fi
 
     if [ ! -d "${tgtDir}" ]; then
         if ! mkdir -p "${tgtDir}"; then
-            print_prompt -y "Creating directory as root instead..."
+            print_log -y "Creating directory as root instead..."
             sudo mkdir -p "${tgtDir}"
         fi
     fi
 
     tgtChk="$(basename "$(tar -tf "${tarFile}" | cut -d '/' -f1 | sort -u)")"
-    [[ "${FULL_THEME_UPDATE}" = true ]] || { [ -d "${tgtDir}/${tgtChk}" ] && print_prompt -y "[skip] " "\"${tgtDir}/${tgtChk}\" already exists" && continue; }
-    print_prompt -g "[extracting] " "${tarFile} --> ${tgtDir}"
+    [[ "${FULL_THEME_UPDATE}" = true ]] || { [ -d "${tgtDir}/${tgtChk}" ] && print_log -y "[skip] " "\"${tgtDir}/${tgtChk}\" already exists" && continue; }
+    print_log -g "[extracting] " "${tarFile} --> ${tgtDir}"
 
     if [ -w "${tgtDir}" ]; then
         tar -xf "${tarFile}" -C "${tgtDir}"
     else
-        print_prompt -y "Not writable. Extracting as root: ${tgtDir}"
+        print_log -y "Not writable. Extracting as root: ${tgtDir}"
         if ! sudo tar -xf "${tarFile}" -C "${tgtDir}" 2>/dev/null; then
-            print_prompt -r "Extraction by root FAILED. Giving up..."
-            print_prompt "The above error can be ignored if the '${tgtDir}' is not writable..."
+            print_log -r "Extraction by root FAILED. Giving up..."
+            print_log "The above error can be ignored if the '${tgtDir}' is not writable..."
         fi
     fi
 
@@ -335,20 +290,20 @@ if [ -n "${logos}" ]; then
         if [ -f "${logo}" ]; then
             cp -f "${logo}" "${Fav_Theme_Logos}"
         else
-            print_prompt -y "[warn] " "${logo} --> do not exist"
+            print_log -y "[warn] " "${logo} --> do not exist"
         fi
     done <<<"${logos}"
 fi
 
 # restore configs with theme override
 echo -en "${restore_list}" >"${Theme_Dir}/restore_cfg.lst"
-print_prompt -g "\n[exec] " "restore_cfg.sh \"${Theme_Dir}/restore_cfg.lst\" \"${Theme_Dir}/Configs\" \"${Fav_Theme}\"\n"
-"${scrDir}/restore_cfg.sh" "${Theme_Dir}/restore_cfg.lst" "${Theme_Dir}/Configs" "${Fav_Theme}" &>/dev/null
+print_log -g "\n[exec] " "restore_cfg.sh \"${Theme_Dir}/restore_cfg.lst\" \"${Theme_Dir}/Configs\" \"${Fav_Theme}\"\n"
+"${scrDir}/restore.config.sh" "${Theme_Dir}/restore_cfg.lst" "${Theme_Dir}/Configs" "${Fav_Theme}" &>/dev/null
 if [ "${3}" != "--skipcaching" ]; then
-    "$HOME/.local/lib/hyde/swwwallcache.sh" -t "${Fav_Theme}"
-    "$HOME/.local/lib/hyde/themeswitch.sh"
+    "${scrDir}/swwwallcache.sh" -t "${Fav_Theme}"
+    "${scrDir}/themeswitch.sh"
 fi
 
-print_prompt -y "\nNote: Warnings are not errors. Review the output to check if it concerns you."
+print_log -y "\nNote: Warnings are not errors. Review the output to check if it concerns you."
 
 exit 0
