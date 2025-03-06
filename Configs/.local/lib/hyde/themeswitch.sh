@@ -72,10 +72,6 @@ export reload_flag=1
 source "${scrDir}/globalcontrol.sh"
 
 #// hypr
-if [ -n "$HYPRLAND_INSTANCE_SIGNATURE" ]; then
-    hyprctl keyword misc:disable_autoreload 1 -q
-    export HYPRLAND_RELOAD=1
-fi
 # shellcheck disable=SC2154
 sed '1d' "${HYDE_THEME_DIR}/hypr.theme" >"${confDir}/hypr/themes/theme.conf" # Useless and already handled by swwwallbash.sh but kept for robustness
 # shellcheck disable=SC2154

@@ -341,11 +341,11 @@ def main():
         "--select", "-S", action="store_true", help="Select themes using fzf"
     )
     parser.add_argument(
-        "--preview", "-p", type=str, metavar="IMAGE_URL", help="Get theme preview"
+        "--preview", "-p", type=str, metavar="THEME", help="Get theme preview"
     )
 
     parser.add_argument(
-        "--preview-text", "-t", type=str, help="Preview text to display"
+        "--preview-text", "-t", type=str, metavar="TEXT", help="Preview text to display"
     )
     parser.add_argument(
         "--skip-clone", action="store_true", help="Skip cloning repository"
