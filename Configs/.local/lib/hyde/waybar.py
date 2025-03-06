@@ -44,6 +44,14 @@ STYLE_DIRS = [
     os.path.expanduser(os.getenv("XDG_DATA_HOME", "~/.local/share") + "/waybar/styles"),
 ]
 
+INCLUDES_DIRS = [
+    os.path.expanduser(os.getenv("XDG_CONFIG_HOME", "~/.config") + "/waybar/includes"),
+    os.path.expanduser(
+        os.getenv("XDG_DATA_HOME", "~/.local/share") + "/waybar/includes"
+    ),
+    "/usr/local/share/waybar/includes",
+    "/usr/share/waybar/includes",
+]
 
 CONFIG_JSONC = os.path.expanduser(
     os.getenv("XDG_CONFIG_HOME", "~/.config") + "/waybar/config.jsonc"
@@ -117,7 +125,7 @@ def get_current_layout_from_config():
         timestamp = time.strftime("%Y%m%d_%H%M%S")
         backup_path = os.path.join(layouts_dir, f"{timestamp}_config.jsonc")
         shutil.copyfile(CONFIG_JSONC, backup_path)
-        logger.info(f"Saved current config to {backup_path}")
+        logger.debug(f"Saved current config to {backup_path}")
         layouts = find_layout_files()
         layout = layouts[0]
     return layout
@@ -345,7 +353,7 @@ def write_style_file(style_filepath, source_filepath):
     """
     with open(style_filepath, "w") as file:
         file.write(style_css)
-    logger.info(f"Successfully wrote style to '{style_filepath}'")
+    logger.debug(f"Successfully wrote style to '{style_filepath}'")
 
 
 def signal_handler(sig, frame):
@@ -363,7 +371,7 @@ def run_waybar_command(command):
             f"{time.strftime('%Y-%m-%d %H:%M:%S')} - Running command: {command}\n"
         )
         subprocess.run(command, shell=True, stdout=file, stderr=file)
-    logger.info(f"Waybar log written to '{log_file}'")
+    logger.debug(f"Waybar log written to '{log_file}'")
 
 
 def list_layout_names():
@@ -378,7 +386,14 @@ def list_layout_names():
 def kill_waybar():
     """Kill any running Waybar instances and the watcher script."""
     subprocess.run(["pkill", "-f", "waybar"])
-    logger.info("Killed all Waybar instances and watcher script.")
+    logger.debug("Killed all Waybar instances and watcher script.")
+
+
+def ensure_directory_exists(filepath):
+    """Ensure the directory for the given filepath exists."""
+    directory = os.path.dirname(filepath)
+    if not os.path.exists(directory):
+        os.makedirs(directory)
 
 
 def main():
@@ -397,6 +412,12 @@ def main():
         help="Update all (icon size, border radius, includes, config, style)",
     )
     parser.add_argument(
+        "-g",
+        "--update-global-css",
+        action="store_true",
+        help="Update global.css file",
+    )
+    parser.add_argument(
         "-i",
         "--update-icon-size",
         action="store_true",
@@ -409,7 +430,7 @@ def main():
         help="Update border radius in CSS file",
     )
     parser.add_argument(
-        "-g",
+        "-G",
         "--generate-includes",
         action="store_true",
         help="Generate includes.json file",
@@ -454,7 +475,10 @@ def main():
         update_icon_size()
         update_border_radius()
         generate_includes()
-        print("Updating config and style...")
+        update_global_css()
+        logger.debug("Updating config and style...")
+    if args.update_global_css:
+        update_global_css()
     if args.update_icon_size:
         update_icon_size()
     if args.update_border_radius:
@@ -499,6 +523,8 @@ def update_icon_size():
         "includes.json",
     )
 
+    ensure_directory_exists(includes_file)
+
     if os.path.exists(includes_file):
         try:
             with open(includes_file, "r") as file:
@@ -533,15 +559,45 @@ def update_icon_size():
 
     with open(includes_file, "w") as file:
         json.dump(includes_data, file, indent=4)
-    logger.info(
+    logger.debug(
         f"Successfully updated icon sizes and appended to '{includes_file}' with {len(updated_entries)} entries."
     )
+
+
+def update_global_css():
+    global_css_path = os.path.expanduser(
+        os.getenv("XDG_CONFIG_HOME", "~/.config") + "/waybar/includes/global.css"
+    )
+
+    ensure_directory_exists(global_css_path)
+
+    if not os.path.exists(global_css_path):
+        for includes_dir in INCLUDES_DIRS:
+            template_path = os.path.join(includes_dir, "global.css")
+            if os.path.exists(template_path):
+                shutil.copyfile(template_path, global_css_path)
+                break
+        else:
+            logger.error("Template for global.css not found in INCLUDES_DIRS")
+            return
 
 
 def update_border_radius():
     css_filepath = os.path.expanduser(
         os.getenv("XDG_CONFIG_HOME", "~/.config") + "/waybar/includes/border-radius.css"
     )
+
+    ensure_directory_exists(css_filepath)
+
+    if not os.path.exists(css_filepath):
+        for includes_dir in INCLUDES_DIRS:
+            template_path = os.path.join(includes_dir, "border-radius.css")
+            if os.path.exists(template_path):
+                shutil.copyfile(template_path, css_filepath)
+                break
+        else:
+            logger.error("Template for border-radius.css not found in INCLUDES_DIRS")
+            return
 
     border_radius = os.getenv("WAYBAR_BORDER_RADIUS")
 
@@ -592,6 +648,8 @@ def generate_includes():
         "includes.json",
     )
 
+    ensure_directory_exists(includes_file)
+
     if os.path.exists(includes_file):
         with open(includes_file, "r") as file:
             includes_data = json.load(file)
@@ -610,19 +668,36 @@ def generate_includes():
 
     with open(includes_file, "w") as file:
         json.dump(includes_data, file, indent=4)
-    logger.info(f"Successfully updated '{includes_file}' with {len(includes)} entries.")
+    logger.debug(
+        f"Successfully updated '{includes_file}' with {len(includes)} entries."
+    )
 
 
 def update_config(config_path):
     xdg_config_home = os.getenv("XDG_CONFIG_HOME", os.path.expanduser("~/.config"))
     CONFIG_JSONC = os.path.join(xdg_config_home, "waybar", "config.jsonc")
     shutil.copyfile(config_path, CONFIG_JSONC)
-    logger.info(f"Successfully copied config from '{config_path}' to '{CONFIG_JSONC}'")
+    logger.debug(f"Successfully copied config from '{config_path}' to '{CONFIG_JSONC}'")
 
 
 def update_style(style_path):
     xdg_config_home = os.getenv("XDG_CONFIG_HOME", os.path.expanduser("~/.config"))
     style_filepath = os.path.join(xdg_config_home, "waybar", "style.css")
+    user_style_filepath = os.path.join(xdg_config_home, "waybar", "user-style.css")
+    theme_style_filepath = os.path.join(xdg_config_home, "waybar", "theme.css")
+
+    ensure_directory_exists(user_style_filepath)
+
+    if not os.path.exists(user_style_filepath):
+        with open(user_style_filepath, "w") as file:
+            file.write("/* User custom styles */\n")
+        logger.debug(f"Created '{user_style_filepath}'")
+
+    if not os.path.exists(theme_style_filepath):
+        logger.error(
+            f"Missing '{theme_style_filepath}', Please run 'hyde-shell reload' to generate it."
+        )
+
     if not style_path:
         current_layout = get_current_layout_from_config()
         logger.debug(f"Detected current layout: '{current_layout}'")
@@ -644,7 +719,7 @@ def watch_waybar():
             result = subprocess.run(["pgrep", "waybar"], capture_output=True)
             if result.returncode != 0:
                 run_waybar_command("killall waybar; waybar & disown")
-                logger.info("Waybar restarted")
+                logger.debug("Waybar restarted")
         except Exception as e:
             logger.error(f"Error monitoring Waybar: {e}")
         time.sleep(2)
