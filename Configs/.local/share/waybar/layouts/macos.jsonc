@@ -17,6 +17,7 @@
     ],
     "modules-right": [
         "image#profile",
+        "image#hyde-menu",
         "clock#date",
         "clock"
     ],
@@ -87,11 +88,5 @@
         "interval": 60,
         "return-type": "plain",
         "on-click": "yad --title='Help' --text-info --width=600 --height=400 --filename=<(man hyprland | col -bx)"
-    },
-    "image#profile": {
-        // put you username here
-        "path": "/home/khing/.face.icon",
-        "size": 13,
-        "interval": 60
     }
 }

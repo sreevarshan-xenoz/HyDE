@@ -11,7 +11,8 @@
     "reload_style_on_change": true,
     "include": [
         "$XDG_CONFIG_HOME/waybar/modules/*json*", // This can be used on waybar-git
-        "$XDG_CONFIG_HOME/waybar/includes.json" // This will be deprecated if waybar 0.12.0 is released on debian
+        "$XDG_DATA_HOME/waybar/modules/*json*" // This can be used on waybar-git
+        // "$XDG_CONFIG_HOME/waybar/includes/includes.json" // This will be deprecated if waybar 0.12.0 is released on debian
     ],
     // ? Groups per side
     "modules-left": [
@@ -67,6 +68,7 @@
             "pulseaudio",
             "pulseaudio#microphone",
             "battery",
+            "power-profiles-daemon",
             "custom/gpuinfo",
             "custom/cpuinfo",
             "custom/sensorsinfo",
