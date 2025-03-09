@@ -62,6 +62,13 @@
                             </object>
                         </child>
 
+                        <child>
+                            <object class="GtkMenuItem" id="theme-import">
+                                <property name="label">More Themes</property>
+                            </object>
+                        </child>
+
+
                     </object>
                 </child>
             </object>
