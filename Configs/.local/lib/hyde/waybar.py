@@ -3,7 +3,6 @@
 import json
 import os
 import glob
-import logging
 import subprocess
 import re
 import argparse
@@ -13,49 +12,49 @@ import sys
 import hashlib
 import signal
 
+import pyutils.wrapper.libnotify as notify
+import pyutils.compositor as HYPRLAND
+import pyutils.logger as logger
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+from pyutils.wrapper.rofi import rofi_dmenu
+from pyutils.xdg_base_dirs import (
+    xdg_config_home,
+    xdg_data_home,
+    xdg_state_home,
+    xdg_cache_home,
+    xdg_runtime_dir,
+)
 
-if os.getenv("DEBUG"):
-    logger.setLevel(logging.DEBUG)
+logger = logger.get_logger()
 
 
 MODULE_DIRS = [
-    os.path.expanduser(os.getenv("XDG_CONFIG_HOME", "~/.config") + "/waybar/modules/"),
-    os.path.expanduser(
-        os.getenv("XDG_DATA_HOME", "~/.local/share") + "/waybar/modules/"
-    ),
+    str(xdg_config_home() / "waybar/modules/"),
+    str(xdg_data_home() / "waybar/modules/"),
     "/usr/local/share/waybar/modules/",
     "/usr/share/waybar/modules/",
 ]
 
 LAYOUT_DIRS = [
-    os.path.expanduser(os.getenv("XDG_CONFIG_HOME", "~/.config") + "/waybar/layouts"),
-    os.path.expanduser(
-        os.getenv("XDG_DATA_HOME", "~/.local/share") + "/waybar/layouts"
-    ),
+    str(xdg_config_home() / "waybar/layouts"),
+    str(xdg_data_home() / "waybar/layouts"),
     "/usr/local/share/waybar/layouts",
     "/usr/share/waybar/layouts",
 ]
 
 STYLE_DIRS = [
-    os.path.expanduser(os.getenv("XDG_CONFIG_HOME", "~/.config") + "/waybar/styles"),
-    os.path.expanduser(os.getenv("XDG_DATA_HOME", "~/.local/share") + "/waybar/styles"),
+    str(xdg_config_home() / "waybar/styles"),
+    str(xdg_data_home() / "waybar/styles"),
 ]
 
 INCLUDES_DIRS = [
-    os.path.expanduser(os.getenv("XDG_CONFIG_HOME", "~/.config") + "/waybar/includes"),
-    os.path.expanduser(
-        os.getenv("XDG_DATA_HOME", "~/.local/share") + "/waybar/includes"
-    ),
+    str(xdg_config_home() / "waybar/includes"),
+    str(xdg_data_home() / "waybar/includes"),
     "/usr/local/share/waybar/includes",
     "/usr/share/waybar/includes",
 ]
 
-CONFIG_JSONC = os.path.expanduser(
-    os.getenv("XDG_CONFIG_HOME", "~/.config") + "/waybar/config.jsonc"
-)
+CONFIG_JSONC = xdg_config_home() / "waybar/config.jsonc"
 
 
 def source_env_file(filepath):
@@ -77,16 +76,6 @@ def get_file_hash(filepath):
     return sha256.hexdigest()
 
 
-LAYOUT_DIRS = [
-    os.path.expanduser(os.getenv("XDG_CONFIG_HOME", "~/.config") + "/waybar/layouts"),
-    os.path.expanduser(
-        os.getenv("XDG_DATA_HOME", "~/.local/share") + "/waybar/layouts"
-    ),
-    "/usr/local/share/waybar/layouts",
-    "/usr/share/waybar/layouts",
-]
-
-
 def find_layout_files():
     """Recursively find all layout files in the specified directories."""
     layouts = []
@@ -101,13 +90,10 @@ def find_layout_files():
 def get_current_layout_from_config():
     """Get the current layout by comparing the hash of the files in the layout directories with the current config.jsonc."""
     logger.debug("Getting current layout from config")
-    CONFIG_JSONC = os.path.expanduser(
-        os.getenv("XDG_CONFIG_HOME", "~/.config") + "/waybar/config.jsonc"
-    )
     logger.debug(f"Checking config: {CONFIG_JSONC}")
-    if not os.path.exists(CONFIG_JSONC):
+    if not CONFIG_JSONC.exists():
         logger.error("Config file not found")
-        os.makedirs(os.path.dirname(CONFIG_JSONC), exist_ok=True)
+        CONFIG_JSONC.parent.mkdir(parents=True, exist_ok=True)
         with open(CONFIG_JSONC, "w") as f:
             json.dump({}, f)
     config_hash = get_file_hash(CONFIG_JSONC)
@@ -119,11 +105,11 @@ def get_current_layout_from_config():
         layout = None
     if not layout:
         logger.debug("No current layout found")
-        config_dir = os.path.dirname(CONFIG_JSONC)
-        layouts_dir = os.path.join(config_dir, "layouts")
-        os.makedirs(layouts_dir, exist_ok=True)
+        config_dir = CONFIG_JSONC.parent
+        layouts_dir = config_dir / "layouts"
+        layouts_dir.mkdir(parents=True, exist_ok=True)
         timestamp = time.strftime("%Y%m%d_%H%M%S")
-        backup_path = os.path.join(layouts_dir, f"{timestamp}_config.jsonc")
+        backup_path = layouts_dir / f"{timestamp}_config.jsonc"
         shutil.copyfile(CONFIG_JSONC, backup_path)
         logger.debug(f"Saved current config to {backup_path}")
         layouts = find_layout_files()
@@ -133,10 +119,8 @@ def get_current_layout_from_config():
 
 def ensure_state_file():
     """Ensure the state file has the necessary entries."""
-    state_file = os.path.expanduser(
-        os.getenv("HYDE_STATE_HOME", "~/.local/state") + "/staterc"
-    )
-    if not os.path.exists(state_file) or os.path.getsize(state_file) == 0:
+    state_file = xdg_state_home() / "staterc"
+    if not state_file.exists() or state_file.stat().st_size == 0:
         current_layout = get_current_layout_from_config()
         if current_layout:
             with open(state_file, "w") as file:
@@ -204,9 +188,7 @@ def set_layout(layout):
 
     style_path = resolve_style_path(layout_path)
 
-    state_file = os.path.expanduser(
-        os.getenv("HYDE_STATE_HOME", "~/.local/state") + "/staterc"
-    )
+    state_file = xdg_state_home() / "staterc"
     with open(state_file, "r") as file:
         lines = file.readlines()
     with open(state_file, "w") as file:
@@ -218,23 +200,24 @@ def set_layout(layout):
             else:
                 file.write(line)
 
-    CONFIG_JSONC = os.path.expanduser(
-        os.getenv("XDG_CONFIG_HOME", "~/.config") + "/waybar/config.jsonc"
-    )
-    style_filepath = os.path.expanduser(
-        os.getenv("XDG_CONFIG_HOME", "~/.config") + "/waybar/style.css"
-    )
+    style_filepath = xdg_config_home() / "waybar/style.css"
     shutil.copyfile(layout_path, CONFIG_JSONC)
     write_style_file(style_filepath, style_path)
-    subprocess.run(["pkill", "-SIGUSR2", "waybar"])
+    update_icon_size()
+    update_border_radius()
+    generate_includes()
+    update_global_css()
+    notify.send(
+        "Waybar",
+        f"Layout changed to {layout}",
+    )
+    run_waybar_command("killall waybar; waybar & disown")
 
 
 def handle_layout_navigation(option):
     """Handle --next, --prev, and --set options."""
     layouts = find_layout_files()
-    state_file = os.path.expanduser(
-        os.getenv("HYDE_STATE_HOME", "~/.local/state") + "/staterc"
-    )
+    state_file = xdg_state_home() / "staterc"
     current_layout = None
     with open(state_file, "r") as file:
         for line in file:
@@ -317,9 +300,7 @@ def modify_json_key(data, key, value):
 
 def write_style_file(style_filepath, source_filepath):
     """Override the style file with the given source style."""
-    wallbash_gtk_css_file = os.path.expanduser(
-        os.getenv("XDG_CACHE_HOME", "~/.cache") + "/hyde/wallbash/gtk.css"
-    )
+    wallbash_gtk_css_file = xdg_cache_home() / "hyde/wallbash/gtk.css"
     wallbash_gtk_css_file_str = (
         f'@import "{wallbash_gtk_css_file}";'
         if os.path.exists(wallbash_gtk_css_file)
@@ -363,24 +344,15 @@ def signal_handler(sig, frame):
 
 def run_waybar_command(command):
     """Run a Waybar command and redirect its output to the Waybar log file."""
-    log_dir = os.path.expanduser(os.getenv("XDG_RUNTIME_DIR", "/tmp") + "/hyde")
+    log_dir = xdg_runtime_dir() / "hyde"
     os.makedirs(log_dir, exist_ok=True)
-    log_file = os.path.join(log_dir, "waybar.log")
+    log_file = log_dir / "waybar.log"
     with open(log_file, "a") as file:
         file.write(
             f"{time.strftime('%Y-%m-%d %H:%M:%S')} - Running command: {command}\n"
         )
         subprocess.run(command, shell=True, stdout=file, stderr=file)
     logger.debug(f"Waybar log written to '{log_file}'")
-
-
-def list_layout_names():
-    """List all layout layout_names."""
-    layout_style_pairs = list_layouts()
-    layout_names = [pair["name"] for pair in layout_style_pairs]
-    for name in layout_names:
-        print(name)
-    sys.exit(0)
 
 
 def kill_waybar():
@@ -394,6 +366,46 @@ def ensure_directory_exists(filepath):
     directory = os.path.dirname(filepath)
     if not os.path.exists(directory):
         os.makedirs(directory)
+
+
+def rofi_selector():
+    """List all layout names in a rofi selector."""
+    layout_style_pairs = list_layouts()
+    layout_names = [pair["name"] for pair in layout_style_pairs]
+    current_layout = [
+        pair["name"]
+        for pair in layout_style_pairs
+        if pair["layout"] == get_current_layout_from_config()
+    ]
+    logger.debug(f"Current layout: {current_layout}")
+
+    hyprland = HYPRLAND.HyprctlWrapper()
+
+    override_string = hyprland.get_rofi_override_string()
+    rofi_pos_string = hyprland.get_rofi_pos()
+
+    rofi_flags = [
+        "-p",
+        "Select layout:",
+        "-select",
+        current_layout[0],
+        "-theme",
+        "clipboard",
+        "-theme-str",
+        override_string,
+        "-theme-str",
+        rofi_pos_string,
+    ]
+    selected_layout = rofi_dmenu(
+        layout_names,
+        rofi_flags,
+    )
+    logger.debug(f"Selected layout: {selected_layout}")
+    if selected_layout:
+        set_layout(selected_layout)
+
+    ensure_state_file()
+    sys.exit(0)
 
 
 def main():
@@ -460,16 +472,8 @@ def main():
 
     ensure_state_file()
 
-    source_env_file(
-        os.path.expanduser(
-            os.getenv("XDG_RUNTIME_DIR", "~/.runtime") + "/hyde/environment"
-        )
-    )
-    source_env_file(
-        os.path.expanduser(
-            os.getenv("XDG_STATE_HOME", "~/.local/state") + "/hyde/config"
-        )
-    )
+    source_env_file(xdg_runtime_dir() / "hyde/environment")
+    source_env_file(xdg_state_home() / "hyde/config")
     get_current_layout_from_config()
     if args.update:
         update_icon_size()
@@ -496,7 +500,8 @@ def main():
     if args.json:
         list_layouts_json()
     if args.select:
-        list_layout_names()
+        rofi_selector()
+
     if args.kill:
         kill_waybar()
         sys.exit(0)
@@ -517,11 +522,7 @@ def main():
 
 
 def update_icon_size():
-    includes_file = os.path.join(
-        os.getenv("XDG_CONFIG_HOME", os.path.expanduser("~/.config")),
-        "waybar/includes",
-        "includes.json",
-    )
+    includes_file = xdg_config_home() / "waybar/includes/includes.json"
 
     ensure_directory_exists(includes_file)
 
@@ -565,9 +566,7 @@ def update_icon_size():
 
 
 def update_global_css():
-    global_css_path = os.path.expanduser(
-        os.getenv("XDG_CONFIG_HOME", "~/.config") + "/waybar/includes/global.css"
-    )
+    global_css_path = xdg_config_home() / "waybar/includes/global.css"
 
     ensure_directory_exists(global_css_path)
 
@@ -583,9 +582,7 @@ def update_global_css():
 
 
 def update_border_radius():
-    css_filepath = os.path.expanduser(
-        os.getenv("XDG_CONFIG_HOME", "~/.config") + "/waybar/includes/border-radius.css"
-    )
+    css_filepath = xdg_config_home() / "waybar/includes/border-radius.css"
 
     ensure_directory_exists(css_filepath)
 
@@ -604,14 +601,15 @@ def update_border_radius():
     if not border_radius:
         hyde_hypr_theme = os.path.join(os.getenv("HYDE_THEME_DIR", ""), "hypr.theme")
 
-        border_radius = subprocess.run(
+        border_radius_result = subprocess.run(
             ["hyq", hyde_hypr_theme, "--query", "decoration:rounding"],
             capture_output=True,
             text=True,
         )
-        border_radius = (
-            int(border_radius.stdout.strip()) if border_radius.stdout else None
-        )
+        try:
+            border_radius = int(border_radius_result.stdout.strip())
+        except ValueError:
+            border_radius = None
 
     if not border_radius:
         result = subprocess.run(
@@ -624,7 +622,7 @@ def update_border_radius():
             try:
                 data = json.loads(result.stdout)
                 border_radius = data.get("int", 3)
-            except json.JSONDecodeError as e:
+            except (json.JSONDecodeError, ValueError) as e:
                 logger.error(f"Failed to parse JSON output: {e}")
                 border_radius = 3
         else:
@@ -633,20 +631,18 @@ def update_border_radius():
 
     if border_radius is None or border_radius < 1:
         border_radius = 2
+
     with open(css_filepath, "r") as file:
         content = file.read()
+
     updated_content = re.sub(r"\d+pt", f"{border_radius}pt", content)
+
     with open(css_filepath, "w") as file:
         file.write(updated_content)
 
 
 def generate_includes():
-    includes_file = os.path.join(
-        os.getenv("XDG_CONFIG_HOME", os.path.expanduser("~/.config")),
-        "waybar",
-        "includes",
-        "includes.json",
-    )
+    includes_file = xdg_config_home() / "waybar/includes/includes.json"
 
     ensure_directory_exists(includes_file)
 
@@ -674,17 +670,15 @@ def generate_includes():
 
 
 def update_config(config_path):
-    xdg_config_home = os.getenv("XDG_CONFIG_HOME", os.path.expanduser("~/.config"))
-    CONFIG_JSONC = os.path.join(xdg_config_home, "waybar", "config.jsonc")
+    CONFIG_JSONC = xdg_config_home() / "waybar/config.jsonc"
     shutil.copyfile(config_path, CONFIG_JSONC)
     logger.debug(f"Successfully copied config from '{config_path}' to '{CONFIG_JSONC}'")
 
 
 def update_style(style_path):
-    xdg_config_home = os.getenv("XDG_CONFIG_HOME", os.path.expanduser("~/.config"))
-    style_filepath = os.path.join(xdg_config_home, "waybar", "style.css")
-    user_style_filepath = os.path.join(xdg_config_home, "waybar", "user-style.css")
-    theme_style_filepath = os.path.join(xdg_config_home, "waybar", "theme.css")
+    style_filepath = xdg_config_home() / "waybar/style.css"
+    user_style_filepath = xdg_config_home() / "waybar/user-style.css"
+    theme_style_filepath = xdg_config_home() / "waybar/theme.css"
 
     ensure_directory_exists(user_style_filepath)
 

@@ -7,7 +7,7 @@ scrDir="$(dirname "$(realpath "$0")")"
 source "${scrDir}/globalcontrol.sh"
 # shellcheck disable=SC2154
 
-echo "DEPRECATION: This script will be removed in the future."
+echo "DEPRECATION: The $0 will be removed in the future."
 if [ -z "${1}" ]; then
     "${scrDir}/waybar.py" --update
 else
