@@ -53,14 +53,17 @@ get_hashmap() {
 
         hashMap=$(
             # shellcheck disable=SC2046
-            find "${wallSource}" -type f \( $(printf -- "-iname *.%s -o " "${supported_files[@]}" | sed 's/ -o $//') \) ! -path "*/logo/*" -exec "${hashMech}" {} + | sort -k2
+            find "${wallSource}" -type f \
+            \( $(printf -- "-iname *.%s -o " "${supported_files[@]}" | sed 's/ -o $//') \) ! -path "*/logo/*" \
+            -exec "${hashMech}" {} + 2> /dev/null |
+            sort -k2
         )
         # hashMap=$(
         # find "${wallSource}" -type f \( -iname "*.gif" -o -iname "*.jpg" -o -iname "*.jpeg" -o -iname "*.png" -o -iname "*.mkv"  \) ! -path "*/logo/*" -exec "${hashMech}" {} + | sort -k2
         # )
 
         if [ -z "${hashMap}" ]; then
-            echo "WARNING: No image found in \"${wallSource}\""
+          notify-send -a "HyDE Alert" "WARNING: No compatible wallpapers found in \"${wallSource}\""
             continue
         fi
 
