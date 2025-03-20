@@ -138,7 +138,7 @@ hyde_reload() {
 
     print_log -sec "hyde" "Reloading HyDE"
     "$LIB_DIR/hyde/swwwallcache.sh" -t ""
-    "$LIB_DIR/hyde/themeswitch.sh"
+    "$LIB_DIR/hyde/theme.switch.sh"
 }
 
 list_script() {

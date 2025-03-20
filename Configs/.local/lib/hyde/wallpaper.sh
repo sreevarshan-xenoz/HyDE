@@ -350,7 +350,6 @@ while true; do
         # Accepts wallpaper output path
         wallpaper_setter_flag=o
         wallpaper_output="${2}"
-        print_log -sec "wallpaper" "Copying wallpaper to: ${wallpaper_output}"
         shift 2
         ;;
     -h | --help)
