@@ -1,14 +1,15 @@
 * {
-    /* font-family: "SF Pro Display", sans-serif; */
-    background: transparent;
-    background-color: transparent;
+    font-family: "SF Pro Display", sans-serif;
+    /* background: transparent; */
+    /* background-color: transparent; */
 }
 
 #waybar {
     background-color: @bar-bg;
     /* border-bottom: 0.01 solid #000000; */
-    padding: 0.4em 1em;
-    margin: 0.5em;
+    padding: 0em;
+    margin: 0em;
+    background: rgba(0, 0, 0, 0.4);
 }
 
 #clock,
@@ -29,13 +30,13 @@
 }
 
 #clock {
-    font-weight: 700;
-    font-size: 1.21em;
+    /* font-weight: 700; */
+    /* font-size: 1em; */
 }
 
 #window {
     padding: 0 0.5em;
-    font-weight: 600;
+    /* font-weight: 600; */
 }
 
 #battery {
@@ -49,19 +50,17 @@
 #custom-launcher {
     color: white;
     padding: 0 0.20em 0 1.31em;
-    font-size: 0.23em;
+    /* font-size: 0.23em; */
 }
 
 #custom-text {
+
     padding-left: 0.01;
-    font-weight: 600;
+    /* font-weight: 600; */
 }
 
-#custom-texttwo,
-#custom-textthree,
-#custom-textfour,
-#custom-textfive {
-    font-size: 1.31em;
+#custom-text {
+    /* font-size: 1.31em; */
     padding-left: 0.20em;
     color: white;
 }
@@ -72,8 +71,8 @@
 
 #custom-date {
     color: white;
-    font-size: 1.31em;
-    font-weight: 700;
+    /* font-size: 1.31em; */
+    /* font-weight: 700; */
 }
 
 tooltip {
@@ -81,5 +80,5 @@ tooltip {
     color: @main-fg;
     border-radius: 0.5em;
     padding: 0.5em;
-    font-size: 1.21em;
+    /* font-size: 1.21em; */
 }
