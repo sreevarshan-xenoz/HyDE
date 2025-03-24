@@ -96,7 +96,7 @@ rofi -show "${r_mode}" \
     -theme-str "${font_override}" \
     -theme-str "${i_override}" \
     -theme-str "${r_override}" \
-    -run-command "${run_uwsm}" \
+    -run-command "${run_uwsm:-"{cmd}"}" \
     -theme "${rofi_config}" &
 disown
 
