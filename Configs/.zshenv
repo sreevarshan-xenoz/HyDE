@@ -11,7 +11,7 @@
 
 # HyDE's ZSH env configuration
 # This file is sourced by ZSH on startup
-# And ensures that we have an obstruction free ~/.zshrc file
+# And ensures that we have an obstruction-free ~/.zshrc file
 # This also ensures that the proper HyDE $ENVs are loaded
 
 function command_not_found_handler {
@@ -60,29 +60,6 @@ function load_zsh_plugins {
 
     # Loads om-my-zsh
     [[ -r $ZSH/oh-my-zsh.sh ]] && source $ZSH/oh-my-zsh.sh
-}
-
-# Install packages from both Arch and AUR
-function in {
-    local -a inPkg=("$@")
-    local -a arch=()
-    local -a aur=()
-
-    for pkg in "${inPkg[@]}"; do
-        if pacman -Si "${pkg}" &>/dev/null; then
-            arch+=("${pkg}")
-        else
-            aur+=("${pkg}")
-        fi
-    done
-
-    if [[ ${#arch[@]} -gt 0 ]]; then
-        sudo pacman -S "${arch[@]}"
-    fi
-
-    if [[ ${#aur[@]} -gt 0 ]]; then
-        ${PM} -S "${aur[@]}"
-    fi
 }
 
 # Function to display a slow load warning
@@ -198,10 +175,11 @@ if [ -t 1 ]; then
     fi
 
     alias c='clear' \
-        un='$PM uninstall' \
+        in='$PM install' \
+        un='$PM remove' \
         up='$PM upgrade' \
         pl='$PM search installed' \
-        pa='$PM search installed' \
+        pa='$PM search all' \
         vc='code' \
         fastfetch='fastfetch --logo-type kitty' \
         ..='cd ..' \
@@ -211,8 +189,8 @@ if [ -t 1 ]; then
         .5='cd ../../../../..' \
         mkdir='mkdir -p' # Always mkdir a path (this doesn't inhibit functionality to make a single dir)
 
-    # TODO add handlers in pm.sh
-    # for this aliases please manually add the following lines to your .zshrc file. yay as the aur helper
+    # TODO: add handlers in pm.sh
+    # for these aliases please manually add the following lines to your .zshrc file.(Using yay as the aur helper)
     # pc='yay -Sc' # remove all cached packages
     # po='yay -Qtdq | $PM -Rns -' # remove orphaned packages
 
