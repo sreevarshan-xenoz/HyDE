@@ -6,7 +6,8 @@
       "activated": "\udb80\udd76",
       "deactivated": "\udb81\udeca"
     },
-    "tooltip-format-activated": "Caffeine Mode Active",
-    "tooltip-format-deactivated": "Caffeine Mode Inactive"
+    "justify": "center",
+    "tooltip-format-activated": "<span foreground='#98c379'>\udb80\udd76 Caffeine Mode Active</span>\nPrevents system from going to sleep",
+    "tooltip-format-deactivated": "<span foreground='#e06c75'>\udb81\udeca Caffeine Mode Inactive</span>\nSystem will follow normal power settings"
   }
 }
