@@ -109,7 +109,8 @@ def get_current_layout_from_config():
         layouts_dir = config_dir / "layouts"
         layouts_dir.mkdir(parents=True, exist_ok=True)
         timestamp = time.strftime("%Y%m%d_%H%M%S")
-        backup_path = layouts_dir / f"{timestamp}_config.jsonc"
+        backup_path = os.path.join(layouts_dir, "backup", f"{timestamp}_config.jsonc")
+        os.makedirs(os.path.dirname(backup_path), exist_ok=True)
         shutil.copyfile(CONFIG_JSONC, backup_path)
         logger.debug(f"Saved current config to {backup_path}")
         layouts = find_layout_files()
