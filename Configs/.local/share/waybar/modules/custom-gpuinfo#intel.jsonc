@@ -1,11 +1,12 @@
 {
-    "custom/gpuinfo#intel": {
-        "exec": " gpuinfo.sh --use intel ",
-        "return-type": "json",
-        "format": "{0}",
-        "rotate": 0,
-        "interval": 5,
-        "tooltip": true,
-        "max-length": 1000
-    }
+  "custom/gpuinfo#intel": {
+    "exec-if": "gpuinfo.sh --stat intel",
+    "exec": " gpuinfo.sh --use intel ",
+    "return-type": "json",
+    "format": "{0}",
+    "rotate": 0,
+    "interval": 5,
+    "tooltip": true,
+    "max-length": 1000
+  }
 }

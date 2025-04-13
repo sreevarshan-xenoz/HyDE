@@ -1,11 +1,12 @@
 {
-    "custom/gpuinfo#amd": {
-        "exec": " gpuinfo.sh --use amd ",
-        "return-type": "json",
-        "format": "{0}",
-        "rotate": 0,
-        "interval": 5,
-        "tooltip": true,
-        "max-length": 1000
-    }
+  "custom/gpuinfo#amd": {
+    "exec-if": "gpuinfo.sh --stat amd",
+    "exec": " gpuinfo.sh --use amd ",
+    "return-type": "json",
+    "format": "{0}",
+    "rotate": 0,
+    "interval": 5,
+    "tooltip": true,
+    "max-length": 1000
+  }
 }
