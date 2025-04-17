@@ -149,7 +149,9 @@ def ensure_state_file():
 def resolve_style_path(layout_path):
     """Resolve the style path based on the layout path."""
     name = os.path.basename(layout_path).replace(".jsonc", "")
+    dir_name = os.path.basename(os.path.dirname(layout_path))
 
+    # First try with the exact file name
     for style_dir in STYLE_DIRS:
         style_path = glob.glob(os.path.join(style_dir, f"{name}*.css"))
 
@@ -157,12 +159,23 @@ def resolve_style_path(layout_path):
             logger.debug(f"Resolved style path: {style_path[0]}")
             return style_path[0]
 
-        name = name.split("#")[0]
-        style_path = glob.glob(os.path.join(style_dir, f"{name}*.css"))
+        # Try with the basename without anything after # character
+        basename_without_hash = name.split("#")[0]
+        style_path = glob.glob(os.path.join(style_dir, f"{basename_without_hash}*.css"))
         if style_path:
             logger.debug(f"Resolved style path with #: {style_path[0]}")
             return style_path[0]
 
+        # Try with the directory name if it exists
+        if dir_name:
+            style_path = glob.glob(os.path.join(style_dir, f"{dir_name}*.css"))
+            if style_path:
+                logger.debug(
+                    f"Resolved style path from directory name: {style_path[0]}"
+                )
+                return style_path[0]
+
+    # Fallback to default styles
     for style_dir in STYLE_DIRS:
         default_path = os.path.join(style_dir, "defaults.css")
         if os.path.exists(default_path):
