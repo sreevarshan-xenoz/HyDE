@@ -80,6 +80,7 @@ download_and_extract() {
 
 resolve() {
     local layout_path="${1}"
+    layout_path="$(printf "%s" "${layout_path}")"
     layout_path="$(realpath "${layout_path}")"
     if [[ ! -f "${layout_path}" ]]; then
         echo "[font] Layout file not found: ${layout_path}"
