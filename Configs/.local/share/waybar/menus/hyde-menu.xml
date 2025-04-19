@@ -4,6 +4,25 @@
     <object class="GtkMenu" id="menu">
 
         <child>
+            <object class="GtkMenuItem" id="animation_menu">
+                <property name="label">Animations</property>
+                <child type="submenu">
+                    <object class="GtkMenu">
+
+                        <child>
+                            <object class="GtkMenuItem" id="animations-select">
+                                <property name="label">Select animation</property>
+                            </object>
+                        </child>
+
+
+                    </object>
+                </child>
+            </object>
+        </child>
+
+
+        <child>
             <object class="GtkMenuItem" id="wallpaper_menu">
                 <property name="label">Wallpaper</property>
                 <child type="submenu">
@@ -117,6 +136,25 @@
                         <child>
                             <object class="GtkMenuItem" id="waybar-restart">
                                 <property name="label">Restart</property>
+                            </object>
+                        </child>
+
+
+                    </object>
+                </child>
+            </object>
+        </child>
+
+
+        <child>
+            <object class="GtkMenuItem" id="workflows_menu">
+                <property name="label">Workflows</property>
+                <child type="submenu">
+                    <object class="GtkMenu">
+
+                        <child>
+                            <object class="GtkMenuItem" id="workflows-select">
+                                <property name="label">Select workflows</property>
                             </object>
                         </child>
 

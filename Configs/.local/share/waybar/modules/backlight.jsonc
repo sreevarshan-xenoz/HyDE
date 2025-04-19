@@ -3,8 +3,8 @@
     "rotate": 0,
     "format": "{icon} {percent}%",
     "format-icons": ["", "", "", "", "", "", "", "", ""],
-    "on-scroll-up": "brightnesscontrol.sh i 1",
-    "on-scroll-down": "brightnesscontrol.sh d 1",
+    "on-scroll-up": "hyde-shell brightnesscontrol.sh i 1",
+    "on-scroll-down": "hyde-shell brightnesscontrol.sh d 1",
     "min-length": 6,
     "tooltip": true,
     "tooltip-format": "Backlight level: {icon} {percent}%"
@@ -14,8 +14,8 @@
     "rotate": 0,
     "format": "{icon} {percent}%",
     "format-icons": ["", "", "", "", "", "", "", "", ""],
-    "on-scroll-up": "brightnesscontrol.sh i 1",
-    "on-scroll-down": "brightnesscontrol.sh d 1",
+    "on-scroll-up": "hyde-shell brightnesscontrol.sh i 1",
+    "on-scroll-down": "hyde-shell brightnesscontrol.sh d 1",
     "min-length": 6,
     "tooltip": true,
     "tooltip-format": "Backlight level: {icon} {percent}%\nUsing: intel_backlight"
