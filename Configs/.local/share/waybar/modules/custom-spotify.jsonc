@@ -1,6 +1,6 @@
 {
   "custom/spotify": {
-    "exec": "mediaplayer.py --player spotify",
+    "exec": "hyde-shell mediaplayer.py --player spotify",
     "format": "{}",
     "rotate": 0,
     "return-type": "json",

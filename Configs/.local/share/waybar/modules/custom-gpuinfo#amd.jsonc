@@ -1,7 +1,7 @@
 {
   "custom/gpuinfo#amd": {
-    "exec-if": "gpuinfo.sh --stat amd",
-    "exec": " gpuinfo.sh --use amd ",
+    "exec-if": "hyde-shell  gpuinfo.sh --stat amd",
+    "exec": "hyde-shell gpuinfo.sh --use amd ",
     "return-type": "json",
     "format": "{0}",
     "rotate": 0,

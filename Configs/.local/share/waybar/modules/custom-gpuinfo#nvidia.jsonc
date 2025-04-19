@@ -1,7 +1,7 @@
 {
   "custom/gpuinfo#nvidia": {
-    "exec-if": "gpuinfo.sh --stat nvidia",
-    "exec": " gpuinfo.sh --use nvidia ",
+    "exec-if": "hyde-shell  gpuinfo.sh --stat nvidia",
+    "exec": "hyde-shell  gpuinfo.sh --use nvidia ",
     "return-type": "json",
     "format": "{0}",
     "rotate": 0,
