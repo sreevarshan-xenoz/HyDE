@@ -54,7 +54,20 @@ fi
 
 # Functions
 fn_select() {
-  workflow_items=$(find "$workflows_dir" -name "*.conf" ! -name "default.conf" 2>/dev/null | sed 's/\.conf$//')
+  # Get default workflow icon
+  default_icon=$(get_hyprConf "WORKFLOW_ICON" "${workflows_dir}/default.conf")
+  default_icon=${default_icon:0:1}
+
+  # Find workflows and get icons in one pass
+  workflow_list="${default_icon}\t default"
+  while IFS= read -r workflow_path; do
+    # Sanitize workflow name by removing any leading/trailing whitespace
+    workflow_name=$(basename "$workflow_path" .conf | xargs)
+    [ "$workflow_name" = "default" ] && continue
+    workflow_icon=$(get_hyprConf "WORKFLOW_ICON" "$workflow_path")
+    workflow_icon=${workflow_icon:0:1}
+    workflow_list="${workflow_list}\n${workflow_icon}\t ${workflow_name}"
+  done < <(find "$workflows_dir" -type f -name "*.conf" 2>/dev/null)
 
   # Set rofi scaling
   font_scale="${ROFI_WORKFLOW_SCALE}"
@@ -75,15 +88,13 @@ fn_select() {
   hypr_width=${hypr_width:-"$(hyprctl -j getoption general:border_size | jq '.int')"}
   r_override="window{border:${hypr_width}px;border-radius:${wind_border}px;} wallbox{border-radius:${elem_border}px;} element{border-radius:${elem_border}px;}"
 
-  workflow_items="default
-$workflow_items"
   rofi_select="${HYPR_WORKFLOW/default/default}"
 
   # Display options using Rofi with custom scaling, positioning, and placeholder
-  selected_workflow=$(awk -F/ '{print $NF}' <<<"$workflow_items" |
+  selected_workflow=$(echo -e "${workflow_list}" |
     rofi -dmenu -i -select "$rofi_select" \
       -p "Select workflow" \
-      -theme-str "entry { placeholder: \"Select workflow...\"; }" \
+      -theme-str "entry { placeholder: \"💼 Select workflow...\"; }" \
       -theme-str "${font_override}" \
       -theme-str "${r_override}" \
       -theme-str "$(get_rofi_pos)" \
@@ -93,16 +104,11 @@ $workflow_items"
   if [ -z "$selected_workflow" ]; then
     exit 0
   fi
-  case $selected_workflow in
-  "default")
-    selected_workflow="default"
-    ;;
-  esac
 
+  # Extract the workflow name (remove the icon and tab)
+  selected_workflow=$(awk -F'\t' '{print $2}' <<<"${selected_workflow}" | xargs)
   set_conf "HYPR_WORKFLOW" "$selected_workflow"
   fn_update
-  # Notify the user
-  notify-send -i "preferences-desktop-display" "Workflow:" "$selected_workflow"
 }
 
 get_info() {
@@ -120,7 +126,6 @@ get_info() {
 
 fn_update() {
   get_info
-  echo "$current_icon $current_workflow: $current_description"
   cat <<EOF >"${confDir}/hypr/workflows.conf"
 #! █░█░█ █▀█ █▀█ █▄▀ █▀▀ █░░ █▀█ █░█░█ █▀
 #! ▀▄▀▄▀ █▄█ █▀▄ █░█ █▀░ █▄▄ █▄█ ▀▄▀▄▀ ▄█
@@ -142,6 +147,10 @@ fn_update() {
 source = \$WORKFLOWS_PATH
 
 EOF
+
+  printf "%s %s: %s\n" "$current_icon" "$current_workflow" "$current_description"
+  notify-send -r 9 -i "preferences-desktop-display" "Workflow: ${current_icon} $current_workflow" "${current_description}"
+
 }
 
 handle_waybar() {
@@ -152,7 +161,6 @@ handle_waybar() {
 
   echo "{\"text\": \"${text}\", \"tooltip\": \"${tooltip}\", \"class\": \"${class}\"}"
 
-  pkill -RTMIN+7 waybar
 }
 
 # Process options
@@ -160,6 +168,11 @@ while true; do
   case "$1" in
   -S | --select)
     fn_select
+    # refresh waybar module only if waybar is running
+    if pgrep -x waybar >/dev/null; then
+      pkill -RTMIN+7 waybar
+    fi
+
     exit 0
     ;;
   --help | -h)
