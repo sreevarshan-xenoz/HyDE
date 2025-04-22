@@ -90,7 +90,7 @@ P|${HOME}/.config|libinput-gestures.conf|libinput-gestures
 P|${HOME}/.config|spotify-flags.conf|spotify
 P|${HOME}/.config|code-flags.conf|code
 P|${HOME}/.config|code-flags.conf|visual-studio-code-bin
-P|${HOME}/.config|vscodium-flags.conf|vscodium
+P|${HOME}/.config|codium-flags.conf|vscodium
 P|${HOME}/.config|electron-flags.conf|electron
 
  Notifications 
