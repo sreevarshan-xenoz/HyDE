@@ -33,112 +33,112 @@ $time\
 # You can also replace your username with a neat symbol like   or disable this
 # and use the os module below
 [username]
-show_always = true
-style_user = "bg:#9A348E"
-style_root = "bg:#9A348E"
-format = '[$user ]($style)'
-disabled = false
+    disabled    = false
+    format      = '[$user ]($style)'
+    show_always = true
+    style_root  = "bg:#9A348E"
+    style_user  = "bg:#9A348E"
 
 # An alternative to the username module which displays a symbol that
 # represents the current operating system
 [os]
-style = "bg:#9A348E"
-disabled = true      # Disabled by default
+    disabled = true         # Disabled by default
+    style    = "bg:#9A348E"
 
 [directory]
-style = "bg:#DA627D"
-format = "[ $path ]($style)"
-# truncation_length = 3
-# truncation_symbol = "…/"
+    format = "[ $path ]($style)"
+    style  = "bg:#DA627D"
+    # truncation_length = 3
+    # truncation_symbol = "…/"
 
 # Here is how you can shorten some long paths by text replacement
 # similar to mapped_locations in Oh My Posh:
 [directory.substitutions]
-"Documents" = "󰈙 "
-"Downloads" = " "
-"Music" = " "
-"Pictures" = " "
-# Keep in mind that the order matters. For example:
-# "Important Documents" = " 󰈙 "
-# will not be replaced, because "Documents" was already substituted before.
-# So either put "Important Documents" before "Documents" or use the substituted version:
-# "Important 󰈙 " = " 󰈙 "
+    "Documents" = "󰈙 "
+    "Downloads" = " "
+    "Music"     = " "
+    "Pictures"  = " "
+    # Keep in mind that the order matters. For example:
+    # "Important Documents" = " 󰈙 "
+    # will not be replaced, because "Documents" was already substituted before.
+    # So either put "Important Documents" before "Documents" or use the substituted version:
+    # "Important 󰈙 " = " 󰈙 "
 
 [c]
-symbol = " "
-style = "bg:#86BBD8"
-format = '[ $symbol ($version) ]($style)'
+    format = '[ $symbol ($version) ]($style)'
+    style  = "bg:#86BBD8"
+    symbol = " "
 
 [docker_context]
-symbol = " "
-style = "bg:#06969A"
-format = '[ $symbol $context ]($style)'
+    format = '[ $symbol $context ]($style)'
+    style  = "bg:#06969A"
+    symbol = " "
 
 [elixir]
-symbol = " "
-style = "bg:#86BBD8"
-format = '[ $symbol ($version) ]($style)'
+    format = '[ $symbol ($version) ]($style)'
+    style  = "bg:#86BBD8"
+    symbol = " "
 
 [elm]
-symbol = " "
-style = "bg:#86BBD8"
-format = '[ $symbol ($version) ]($style)'
+    format = '[ $symbol ($version) ]($style)'
+    style  = "bg:#86BBD8"
+    symbol = " "
 
 [git_branch]
-symbol = ""
-style = "bg:#FCA17D"
-format = '[ $symbol $branch ]($style)'
+    format = '[ $symbol $branch ]($style)'
+    style  = "bg:#FCA17D"
+    symbol = ""
 
 [git_status]
-style = "bg:#FCA17D"
-format = '[$all_status$ahead_behind ]($style)'
+    format = '[$all_status$ahead_behind ]($style)'
+    style  = "bg:#FCA17D"
 
 [golang]
-symbol = " "
-style = "bg:#86BBD8"
-format = '[ $symbol ($version) ]($style)'
+    format = '[ $symbol ($version) ]($style)'
+    style  = "bg:#86BBD8"
+    symbol = " "
 
 [gradle]
-style = "bg:#86BBD8"
-format = '[ $symbol ($version) ]($style)'
+    format = '[ $symbol ($version) ]($style)'
+    style  = "bg:#86BBD8"
 
 [haskell]
-symbol = " "
-style = "bg:#86BBD8"
-format = '[ $symbol ($version) ]($style)'
+    format = '[ $symbol ($version) ]($style)'
+    style  = "bg:#86BBD8"
+    symbol = " "
 
 [java]
-symbol = " "
-style = "bg:#86BBD8"
-format = '[ $symbol ($version) ]($style)'
+    format = '[ $symbol ($version) ]($style)'
+    style  = "bg:#86BBD8"
+    symbol = " "
 
 [julia]
-symbol = " "
-style = "bg:#86BBD8"
-format = '[ $symbol ($version) ]($style)'
+    format = '[ $symbol ($version) ]($style)'
+    style  = "bg:#86BBD8"
+    symbol = " "
 
 [nodejs]
-symbol = ""
-style = "bg:#86BBD8"
-format = '[ $symbol ($version) ]($style)'
+    format = '[ $symbol ($version) ]($style)'
+    style  = "bg:#86BBD8"
+    symbol = ""
 
 [nim]
-symbol = "󰆥 "
-style = "bg:#86BBD8"
-format = '[ $symbol ($version) ]($style)'
+    format = '[ $symbol ($version) ]($style)'
+    style  = "bg:#86BBD8"
+    symbol = "󰆥 "
 
 [rust]
-symbol = ""
-style = "bg:#86BBD8"
-format = '[ $symbol ($version) ]($style)'
+    format = '[ $symbol ($version) ]($style)'
+    style  = "bg:#86BBD8"
+    symbol = ""
 
 [scala]
-symbol = " "
-style = "bg:#86BBD8"
-format = '[ $symbol ($version) ]($style)'
+    format = '[ $symbol ($version) ]($style)'
+    style  = "bg:#86BBD8"
+    symbol = " "
 
 [time]
-disabled = false
-time_format = "%R"             # Hour:Minute Format
-style = "bg:#33658A"
-format = '[  $time ]($style)'
+    disabled    = false
+    format      = '[  $time ]($style)'
+    style       = "bg:#33658A"
+    time_format = "%R"                  # Hour:Minute Format
