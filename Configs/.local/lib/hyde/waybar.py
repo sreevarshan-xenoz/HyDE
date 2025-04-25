@@ -12,6 +12,8 @@ import sys
 import hashlib
 import signal
 
+from pathlib import Path
+
 import pyutils.wrapper.libnotify as notify
 import pyutils.compositor as HYPRLAND
 import pyutils.logger as logger
@@ -29,32 +31,33 @@ logger = logger.get_logger()
 
 
 MODULE_DIRS = [
-    str(xdg_config_home() / "waybar/modules/"),
-    str(xdg_data_home() / "waybar/modules/"),
-    "/usr/local/share/waybar/modules/",
-    "/usr/share/waybar/modules/",
+    os.path.join(str(xdg_config_home()), "waybar", "modules"),
+    os.path.join(str(xdg_data_home()), "waybar", "modules"),
+    "/usr/local/share/waybar/modules",
+    "/usr/share/waybar/modules",
 ]
 
 LAYOUT_DIRS = [
-    str(xdg_config_home() / "waybar/layouts"),
-    str(xdg_data_home() / "waybar/layouts"),
+    os.path.join(str(xdg_config_home()), "waybar", "layouts"),
+    os.path.join(str(xdg_data_home()), "waybar", "layouts"),
     "/usr/local/share/waybar/layouts",
     "/usr/share/waybar/layouts",
 ]
 
 STYLE_DIRS = [
-    str(xdg_config_home() / "waybar/styles"),
-    str(xdg_data_home() / "waybar/styles"),
+    os.path.join(str(xdg_config_home()), "waybar", "styles"),
+    os.path.join(str(xdg_data_home()), "waybar", "styles"),
 ]
 
 INCLUDES_DIRS = [
-    str(xdg_config_home() / "waybar/includes"),
-    str(xdg_data_home() / "waybar/includes"),
+    os.path.join(str(xdg_config_home()), "waybar", "includes"),
+    os.path.join(str(xdg_data_home()), "waybar", "includes"),
     "/usr/local/share/waybar/includes",
     "/usr/share/waybar/includes",
 ]
 
-CONFIG_JSONC = xdg_config_home() / "waybar/config.jsonc"
+CONFIG_JSONC = Path(os.path.join(str(xdg_config_home()), "waybar", "config.jsonc"))
+STATE_FILE = Path(os.path.join(str(xdg_state_home()), "hyde", "staterc"))
 
 
 def source_env_file(filepath):
@@ -87,24 +90,90 @@ def find_layout_files():
     return sorted(layouts)
 
 
+def get_state_value(key, default=None):
+    """Get a value from the state file."""
+    if not STATE_FILE.exists():
+        return default
+
+    with open(STATE_FILE, "r") as file:
+        for line in file:
+            if line.startswith(f"{key}="):
+                return line.split("=", 1)[1].strip()
+    return default
+
+
+def set_state_value(key, value):
+    """Set or update a value in the state file."""
+    STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
+
+    if not STATE_FILE.exists():
+        with open(STATE_FILE, "w") as file:
+            file.write(f"{key}={value}\n")
+        return True
+
+    with open(STATE_FILE, "r") as file:
+        lines = file.readlines()
+
+    key_updated = False
+    with open(STATE_FILE, "w") as file:
+        for line in lines:
+            if line.startswith(f"{key}="):
+                file.write(f"{key}={value}\n")
+                key_updated = True
+            else:
+                file.write(line)
+
+        if not key_updated:
+            file.write(f"{key}={value}\n")
+
+    return True
+
+
 def get_current_layout_from_config():
-    """Get the current layout by comparing the hash of the files in the layout directories with the current config.jsonc."""
-    logger.debug("Getting current layout from config")
+    """Get the current layout from state file or by comparing hash of layout files with current config.jsonc."""
+    logger.debug("Getting current layout")
+
+    # First check if layout path is in state file
+    layout_path = get_state_value("WAYBAR_LAYOUT_PATH")
+    if layout_path and os.path.exists(layout_path):
+        logger.debug(f"Found current layout in state file: {layout_path}")
+        return layout_path
+
+    # Check for layout name in state file
+    layout_name = get_state_value("WAYBAR_LAYOUT_NAME")
+    if layout_name:
+        layouts = find_layout_files()
+        for layout in layouts:
+            if os.path.basename(layout).replace(".jsonc", "") == layout_name:
+                logger.debug(f"Found current layout by name in state file: {layout}")
+                return layout
+
+    # Fallback to legacy method - hash comparison
+    logger.debug("Fallback to legacy hash comparison method")
     logger.debug(f"Checking config: {CONFIG_JSONC}")
     if not CONFIG_JSONC.exists():
         logger.error("Config file not found")
         CONFIG_JSONC.parent.mkdir(parents=True, exist_ok=True)
         with open(CONFIG_JSONC, "w") as f:
             json.dump({}, f)
+
     config_hash = get_file_hash(CONFIG_JSONC)
     layouts = find_layout_files()
-    for layout in layouts:
-        if get_file_hash(layout) == config_hash:
-            logger.debug(f"Found current layout: {layout}")
+    layout = None
+
+    for layout_file in layouts:
+        if get_file_hash(layout_file) == config_hash:
+            logger.debug(f"Found current layout by hash: {layout_file}")
+            # Update state file with found layout
+            layout_name = os.path.basename(layout_file).replace(".jsonc", "")
+            set_state_value("WAYBAR_LAYOUT_PATH", layout_file)
+            set_state_value("WAYBAR_LAYOUT_NAME", layout_name)
+            layout = layout_file
             return layout
-        layout = None
-    if not layout:
-        logger.debug("No current layout found")
+
+    # Nothing found by hash, use first layout or create backup
+    if not layout and layouts:
+        logger.debug("No current layout found by hash comparison")
         config_dir = CONFIG_JSONC.parent
         layouts_dir = config_dir / "layouts"
         layouts_dir.mkdir(parents=True, exist_ok=True)
@@ -113,37 +182,75 @@ def get_current_layout_from_config():
         os.makedirs(os.path.dirname(backup_path), exist_ok=True)
         shutil.copyfile(CONFIG_JSONC, backup_path)
         logger.debug(f"Saved current config to {backup_path}")
-        layouts = find_layout_files()
         layout = layouts[0]
+
+        # Update state file with default layout
+        layout_name = os.path.basename(layout).replace(".jsonc", "")
+        set_state_value("WAYBAR_LAYOUT_PATH", layout)
+        set_state_value("WAYBAR_LAYOUT_NAME", layout_name)
+
+        # Update config.jsonc with the layout
+        shutil.copyfile(layout, CONFIG_JSONC)
+        logger.debug(f"Updated config.jsonc with layout: {layout}")
+
     return layout
 
 
 def ensure_state_file():
     """Ensure the state file has the necessary entries."""
-    state_file = xdg_state_home() / "staterc"
-    if not state_file.exists() or state_file.stat().st_size == 0:
+    STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
+
+    logger.debug(f"Ensuring state file exists at: {STATE_FILE}")
+
+    # Create state file if it doesn't exist
+    if not STATE_FILE.exists():
+        logger.debug("State file does not exist, creating it")
         current_layout = get_current_layout_from_config()
-        if current_layout:
-            with open(state_file, "w") as file:
-                file.write(f"WAYBAR_LAYOUT_PATH={current_layout}\n")
-                style_path = resolve_style_path(current_layout)
-                file.write(f"WAYBAR_STYLE_PATH={style_path}\n")
-    else:
-        with open(state_file, "r") as file:
-            lines = file.readlines()
-        layout_path_exists = any(
-            line.startswith("WAYBAR_LAYOUT_PATH=") for line in lines
+        layout_name = (
+            os.path.basename(current_layout).replace(".jsonc", "")
+            if current_layout
+            else ""
         )
-        style_path_exists = any(line.startswith("WAYBAR_STYLE_PATH=") for line in lines)
-        if not layout_path_exists or not style_path_exists:
-            current_layout = get_current_layout_from_config()
+        style_path = resolve_style_path(current_layout) if current_layout else ""
+
+        with open(STATE_FILE, "w") as file:
             if current_layout:
-                with open(state_file, "a") as file:
-                    if not layout_path_exists:
-                        file.write(f"WAYBAR_LAYOUT_PATH={current_layout}\n")
-                    if not style_path_exists:
-                        style_path = resolve_style_path(current_layout)
-                        file.write(f"WAYBAR_STYLE_PATH={style_path}\n")
+                file.write(f"WAYBAR_LAYOUT_PATH={current_layout}\n")
+                file.write(f"WAYBAR_LAYOUT_NAME={layout_name}\n")
+                file.write(f"WAYBAR_STYLE_PATH={style_path}\n")
+                logger.debug(f"Created state file with layout: {current_layout}")
+            else:
+                logger.warning("No layout found to write to state file")
+        return
+
+    # State file exists but check if it has the necessary entries
+    with open(STATE_FILE, "r") as file:
+        lines = file.readlines()
+
+    layout_path_exists = any(line.startswith("WAYBAR_LAYOUT_PATH=") for line in lines)
+    layout_name_exists = any(line.startswith("WAYBAR_LAYOUT_NAME=") for line in lines)
+    style_path_exists = any(line.startswith("WAYBAR_STYLE_PATH=") for line in lines)
+
+    if not layout_path_exists or not layout_name_exists or not style_path_exists:
+        logger.debug("State file is missing entries, updating it")
+        # Get current layout through legacy method if missing in state file
+        current_layout = (
+            get_current_layout_from_config() if not layout_path_exists else None
+        )
+        if current_layout:
+            layout_name = os.path.basename(current_layout).replace(".jsonc", "")
+            style_path = resolve_style_path(current_layout)
+
+            with open(STATE_FILE, "a") as file:
+                if not layout_path_exists:
+                    file.write(f"WAYBAR_LAYOUT_PATH={current_layout}\n")
+                    logger.debug(f"Added WAYBAR_LAYOUT_PATH={current_layout}")
+                if not layout_name_exists:
+                    file.write(f"WAYBAR_LAYOUT_NAME={layout_name}\n")
+                    logger.debug(f"Added WAYBAR_LAYOUT_NAME={layout_name}")
+                if not style_path_exists:
+                    file.write(f"WAYBAR_STYLE_PATH={style_path}\n")
+                    logger.debug(f"Added WAYBAR_STYLE_PATH={style_path}")
 
 
 def resolve_style_path(layout_path):
@@ -202,10 +309,9 @@ def set_layout(layout):
 
     style_path = resolve_style_path(layout_path)
 
-    state_file = xdg_state_home() / "staterc"
-    with open(state_file, "r") as file:
+    with open(STATE_FILE, "r") as file:
         lines = file.readlines()
-    with open(state_file, "w") as file:
+    with open(STATE_FILE, "w") as file:
         for line in lines:
             if line.startswith("WAYBAR_LAYOUT_PATH="):
                 file.write(f"WAYBAR_LAYOUT_PATH={layout_path}\n")
@@ -231,9 +337,8 @@ def set_layout(layout):
 def handle_layout_navigation(option):
     """Handle --next, --prev, and --set options."""
     layouts = find_layout_files()
-    state_file = xdg_state_home() / "staterc"
     current_layout = None
-    with open(state_file, "r") as file:
+    with open(STATE_FILE, "r") as file:
         for line in file:
             if line.startswith("WAYBAR_LAYOUT_PATH="):
                 current_layout = line.split("=")[1].strip()
@@ -416,13 +521,144 @@ def rofi_selector():
     )
     logger.debug(f"Selected layout: {selected_layout}")
     if selected_layout:
-        set_layout(selected_layout)
+        # Find matching layout from selection
+        selected_layout_path = None
+        for pair in layout_style_pairs:
+            if pair["name"] == selected_layout:
+                selected_layout_path = pair["layout"]
+                style_path = pair["style"]
+                break
+
+        if selected_layout_path:
+            # Update config.jsonc with selected layout file
+            logger.debug(f"Updating config with layout: {selected_layout_path}")
+            shutil.copyfile(selected_layout_path, CONFIG_JSONC)
+
+            # Update state file with selected layout information
+            set_state_value("WAYBAR_LAYOUT_PATH", selected_layout_path)
+            set_state_value("WAYBAR_LAYOUT_NAME", selected_layout)
+            set_state_value("WAYBAR_STYLE_PATH", style_path)
+
+            print(f"WAYBAR_LAYOUT_PATH={selected_layout_path}")
+            print(f"WAYBAR_LAYOUT_NAME={selected_layout}")
+            print(f"WAYBAR_STYLE_PATH={style_path}")
+
+            # Update style.css
+            style_filepath = xdg_config_home() / "waybar/style.css"
+            write_style_file(style_filepath, style_path)
+            update_icon_size()
+            update_border_radius()
+            generate_includes()
+            update_global_css()
+            notify.send(
+                "Waybar",
+                f"Layout changed to {selected_layout}",
+            )
+            run_waybar_command("killall waybar; waybar & disown")
+        else:
+            logger.error(f"Could not find layout path for {selected_layout}")
 
     ensure_state_file()
     sys.exit(0)
 
 
 def main():
+    # Set up logging and debug information
+    logger.debug("Starting waybar.py")
+
+    # Make sure the state file exists and is populated before anything else
+    logger.debug(f"Looking for state file at: {STATE_FILE}")
+
+    # Source environment files
+    source_env_file(xdg_runtime_dir() / "hyde/environment")
+    source_env_file(xdg_state_home() / "hyde/config")
+
+    # Always prioritize the state file - check if it exists
+    if STATE_FILE.exists():
+        logger.debug(f"State file found: {STATE_FILE}")
+        # Get layout directly from state file
+        layout_path = get_state_value("WAYBAR_LAYOUT_PATH")
+
+        # Only proceed if both layout_path and CONFIG_JSONC exist
+        if layout_path and os.path.exists(layout_path) and CONFIG_JSONC.exists():
+            # Compare hashes to detect if config.jsonc was modified
+            config_hash = get_file_hash(CONFIG_JSONC)
+            layout_hash = get_file_hash(layout_path)
+
+            if config_hash != layout_hash:
+                logger.debug(f"Config hash differs from layout hash, creating backup")
+                # Config has been modified, create a backup
+                config_dir = CONFIG_JSONC.parent
+                layouts_dir = config_dir / "layouts"
+                layouts_dir.mkdir(parents=True, exist_ok=True)
+                backup_dir = layouts_dir / "backup"
+                backup_dir.mkdir(parents=True, exist_ok=True)
+                timestamp = time.strftime("%Y%m%d_%H%M%S")
+                backup_path = backup_dir / f"{timestamp}_config.jsonc"
+
+                try:
+                    shutil.copyfile(CONFIG_JSONC, backup_path)
+                    logger.debug(f"Created backup of modified config at {backup_path}")
+                except Exception as e:
+                    logger.error(f"Failed to create backup: {e}")
+
+            # Force update config.jsonc with the layout from state file
+            try:
+                shutil.copyfile(layout_path, CONFIG_JSONC)
+                logger.debug(f"Updated config.jsonc with layout from state file")
+            except Exception as e:
+                logger.error(f"Failed to update config.jsonc: {e}")
+
+        elif layout_path and not os.path.exists(layout_path) and CONFIG_JSONC.exists():
+            # Layout path in state file doesn't exist, check by name
+            logger.warning(f"Layout path in state file doesn't exist: {layout_path}")
+            layout_name = get_state_value("WAYBAR_LAYOUT_NAME")
+            if layout_name:
+                logger.debug(f"Looking for layout by name: {layout_name}")
+                layouts = find_layout_files()
+                for layout in layouts:
+                    if os.path.basename(layout).replace(".jsonc", "") == layout_name:
+                        logger.debug(f"Found layout by name: {layout}")
+
+                        # Compare hashes before overwriting
+                        config_hash = get_file_hash(CONFIG_JSONC)
+                        layout_hash = get_file_hash(layout)
+
+                        if config_hash != layout_hash:
+                            # Config has been modified, create a backup
+                            config_dir = CONFIG_JSONC.parent
+                            layouts_dir = config_dir / "layouts"
+                            layouts_dir.mkdir(parents=True, exist_ok=True)
+                            backup_dir = layouts_dir / "backup"
+                            backup_dir.mkdir(parents=True, exist_ok=True)
+                            timestamp = time.strftime("%Y%m%d_%H%M%S")
+                            backup_path = backup_dir / f"{timestamp}_config.jsonc"
+
+                            try:
+                                shutil.copyfile(CONFIG_JSONC, backup_path)
+                                logger.debug(
+                                    f"Created backup of modified config at {backup_path}"
+                                )
+                            except Exception as e:
+                                logger.error(f"Failed to create backup: {e}")
+
+                        # Update state file with corrected layout path
+                        set_state_value("WAYBAR_LAYOUT_PATH", layout)
+
+                        # Force update config.jsonc with the layout by name
+                        try:
+                            shutil.copyfile(layout, CONFIG_JSONC)
+                            logger.debug(f"Updated config.jsonc with layout by name")
+                        except Exception as e:
+                            logger.error(f"Failed to update config.jsonc: {e}")
+                        break
+                else:
+                    logger.error(f"Could not find layout by name: {layout_name}")
+    else:
+        logger.debug("State file not found, creating it")
+        ensure_state_file()
+
+    # Parse arguments
     parser = argparse.ArgumentParser(description="Waybar configuration script")
     parser.add_argument("--set", type=str, help="Set a specific layout")
     parser.add_argument(
@@ -482,13 +718,25 @@ def main():
         action="store_true",
         help="Kill all Waybar instances and watcher script",
     )
-    args = parser.parse_args()
 
-    ensure_state_file()
+    # First check and ensure state file exists
+    if not STATE_FILE.exists() or STATE_FILE.stat().st_size == 0:
+        logger.debug("State file doesn't exist or is empty, creating it")
+        ensure_state_file()
+    else:
+        logger.debug(f"Using existing state file: {STATE_FILE}")
 
     source_env_file(xdg_runtime_dir() / "hyde/environment")
     source_env_file(xdg_state_home() / "hyde/config")
-    get_current_layout_from_config()
+
+    # Parse arguments after ensuring state file is available
+    args = parser.parse_args()
+
+    # Always check current layout from state first
+    current_layout = get_current_layout_from_config()
+
+    ensure_state_file()
+
     if args.update:
         update_icon_size()
         update_border_radius()
