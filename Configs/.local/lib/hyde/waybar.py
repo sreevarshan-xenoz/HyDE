@@ -433,7 +433,7 @@ def write_style_file(style_filepath, source_filepath):
     *  ░░▒▒▒░░░░░▓▓     _   _ _    _ _____
     *  ░░▒▒░░░░░▓▓▓▓▓ | | | | |  | |  __/
     *   ░▒▒░░░░▓▓   ▓▓ | |_| | |_/ /| |___
-    *    ░▒▒░░▓▓   ▓▓   |__  |____/ |____/
+    *    ░▒▒░▓▓   ▓▓   |__  |____/ |____/
     *      ░▒▓▓   ▓▓  //____/
     */
 
@@ -845,13 +845,18 @@ def update_global_css():
 
 def update_border_radius():
     css_filepath = xdg_config_home() / "waybar/includes/border-radius.css"
+    logger.debug(f"Updating border radius in {css_filepath}")
 
     ensure_directory_exists(css_filepath)
+    logger.debug("Directory for border-radius.css ensured")
 
     if not os.path.exists(css_filepath):
         for includes_dir in INCLUDES_DIRS:
             template_path = os.path.join(includes_dir, "border-radius.css")
             if os.path.exists(template_path):
+                logger.debug(
+                    f"Found template at {template_path}, copying to {css_filepath}"
+                )
                 shutil.copyfile(template_path, css_filepath)
                 break
         else:
@@ -859,21 +864,107 @@ def update_border_radius():
             return
 
     border_radius = os.getenv("WAYBAR_BORDER_RADIUS")
+    logger.debug(f"WAYBAR_BORDER_RADIUS environment variable: {border_radius}")
 
     if not border_radius:
-        hyde_hypr_theme = os.path.join(os.getenv("HYDE_THEME_DIR", ""), "hypr.theme")
+        # Try to find the theme name from the state file
+        logger.debug(f"Looking for theme name in state file: {STATE_FILE}")
 
-        border_radius_result = subprocess.run(
-            ["hyq", hyde_hypr_theme, "--query", "decoration:rounding"],
-            capture_output=True,
-            text=True,
-        )
-        try:
-            border_radius = int(border_radius_result.stdout.strip())
-        except ValueError:
-            border_radius = None
+        theme_name = None
+        if os.path.exists(STATE_FILE):
+            try:
+                with open(STATE_FILE, "r") as file:
+                    for line in file:
+                        if line.startswith("HYDE_THEME="):
+                            theme_name = (
+                                line.strip().split("=", 1)[1].strip('"').strip("'")
+                            )
+                            logger.debug(
+                                f"Found theme name in state file: {theme_name}"
+                            )
+                            break
+            except Exception as e:
+                logger.error(f"Error reading state file: {e}")
+
+        # Try to get border radius from hypr.theme if theme_name exists
+        if theme_name:
+            # Construct theme directory path
+            theme_dir = os.path.join(
+                str(xdg_config_home()), "hyde", "themes", theme_name
+            )
+            logger.debug(f"Looking for theme directory at: {theme_dir}")
+
+            if os.path.exists(theme_dir):
+                hypr_theme_path = os.path.join(theme_dir, "hypr.theme")
+                if os.path.exists(hypr_theme_path):
+                    logger.debug(f"Found hypr.theme at {hypr_theme_path}")
+
+                    try:
+                        # Use a list of arguments and shlex.quote to properly handle spaces in paths
+                        import shlex
+
+                        cmd = [
+                            "hyq",
+                            shlex.quote(hypr_theme_path),
+                            "--query",
+                            "decoration:rounding",
+                        ]
+                        logger.debug(f"Running command: {' '.join(cmd)}")
+
+                        border_radius_result = subprocess.run(
+                            cmd, capture_output=True, text=True
+                        )
+
+                        logger.debug(
+                            f"hyq command output: {border_radius_result.stdout.strip()}"
+                        )
+                        logger.debug(
+                            f"hyq command stderr: {border_radius_result.stderr.strip() if border_radius_result.stderr else 'None'}"
+                        )
+                        logger.debug(
+                            f"hyq exit code: {border_radius_result.returncode}"
+                        )
+
+                        # Extract the last line which typically contains just the value
+                        if border_radius_result.stdout:
+                            output_lines = border_radius_result.stdout.strip().split(
+                                "\n"
+                            )
+                            # Look for a line that contains just a number
+                            for line in reversed(output_lines):
+                                clean_line = line.strip()
+                                if clean_line.isdigit():
+                                    border_radius = int(clean_line)
+                                    logger.debug(
+                                        f"Successfully parsed border radius from hyq: {border_radius}"
+                                    )
+                                    break
+                            else:
+                                # If no numeric line is found, try the last line
+                                last_line = output_lines[-1].strip()
+                                try:
+                                    border_radius = int(last_line)
+                                    logger.debug(
+                                        f"Successfully parsed border radius from hyq last line: {border_radius}"
+                                    )
+                                except ValueError:
+                                    logger.debug(
+                                        f"Failed to parse border radius from hyq output: '{last_line}'"
+                                    )
+                                    border_radius = None
+                        else:
+                            logger.debug("Empty output from hyq command")
+                            border_radius = None
+                    except Exception as e:
+                        logger.error(f"Error running hyq command: {e}")
+                        border_radius = None
+                else:
+                    logger.debug(f"hypr.theme not found at {hypr_theme_path}")
+            else:
+                logger.debug(f"Theme directory not found at {theme_dir}")
 
     if not border_radius:
+        logger.debug("Trying to get border radius from hyprctl")
         result = subprocess.run(
             ["hyprctl", "getoption", "decoration:rounding", "-j"],
             capture_output=True,
@@ -881,26 +972,36 @@ def update_border_radius():
         )
 
         if result.returncode == 0:
+            logger.debug(f"hyprctl command succeeded: {result.stdout}")
             try:
                 data = json.loads(result.stdout)
                 border_radius = data.get("int", 3)
+                logger.debug(f"Parsed border radius from hyprctl: {border_radius}")
             except (json.JSONDecodeError, ValueError) as e:
                 logger.error(f"Failed to parse JSON output: {e}")
                 border_radius = 3
+                logger.debug(f"Using fallback border radius: {border_radius}")
         else:
             logger.error(f"Failed to run hyprctl command: {result.stderr}")
             border_radius = 2
+            logger.debug(f"Using second fallback border radius: {border_radius}")
 
     if border_radius is None or border_radius < 1:
         border_radius = 2
+        logger.debug(f"Border radius is invalid, using default: {border_radius}")
+
+    logger.debug(f"Final border radius value: {border_radius}")
 
     with open(css_filepath, "r") as file:
         content = file.read()
+    logger.debug(f"Read {len(content)} bytes from {css_filepath}")
 
     updated_content = re.sub(r"\d+pt", f"{border_radius}pt", content)
+    logger.debug("Applied border radius value to CSS content")
 
     with open(css_filepath, "w") as file:
         file.write(updated_content)
+    logger.debug(f"Successfully updated border radius in {css_filepath}")
 
 
 def generate_includes():
