@@ -1,0 +1,162 @@
+name: CI
+on:
+  push:
+    branches:
+      - dev
+      - master
+  pull_request:
+
+jobs:
+  dev-to-master-pr:
+    name: Create or Update PR from Dev to Master
+    if: github.ref == 'refs/heads/dev'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # Generate commit history and calculate suggested merge date
+      - name: Generate commit history and schedule
+        id: generate-commits
+        run: |
+          # Get the commit history between master and dev
+          COMMIT_LIST=$(git log --pretty=format:"* %s (%h) by %an" origin/master..origin/dev)
+
+          # Handle empty commit list (branches are identical)
+          if [ -z "$COMMIT_LIST" ]; then
+            COMMIT_LIST="No new commits - branches may be identical"
+          fi
+
+          # Calculate suggested merge date based on release policy
+          # By default, suggesting next Monday as merge date - adjust according to your policy
+          MERGE_DATE="Late wednesday/early thursday"
+
+          # Save commit list to a file (to handle multi-line output)
+          echo "$COMMIT_LIST" > commit_list.txt
+
+          # Create a PR body with the commit list and suggested merge date
+          echo "PR_BODY<<EOF" >> $GITHUB_ENV
+          echo "This is an automated PR to promote changes from \`dev\` to \`master\`." >> $GITHUB_ENV
+          echo "" >> $GITHUB_ENV
+          echo "## Suggested Merge Schedule" >> $GITHUB_ENV
+          echo "According to our release policy, this PR is expected to be merged on: **$MERGE_DATE**" >> $GITHUB_ENV
+          echo "Please note that this schedule may be adjusted based on the needs of the project." >> $GITHUB_ENV
+          echo "## Commits to be merged:" >> $GITHUB_ENV
+          echo "---" >> $GITHUB_ENV
+          cat commit_list.txt >> $GITHUB_ENV
+          echo "---" >> $GITHUB_ENV
+          echo "" >> $GITHUB_ENV
+          echo "Please review the changes carefully before merging." >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+
+      # Use a fixed branch name for the PR
+      - name: Update dev-to-master branch
+        run: |
+          # Setup git
+          git config user.name "GitHub Actions Bot"
+          git config user.email "actions@github.com"
+
+          # Use a fixed branch name for consistency
+          BRANCH_NAME="automated-dev-to-master-branch"
+
+          # Force-push current dev state to the fixed branch
+          git checkout -b $BRANCH_NAME
+          git push --force origin $BRANCH_NAME
+
+      # Create or update PR using GitHub API with retry logic
+      - name: Create or Update Pull Request
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const { repo, owner } = context.repo;
+            const prBranch = "automated-dev-to-master-branch";
+            const prTitle = "chore(rc):Promote dev changes to master"; 
+            const prBody = process.env.PR_BODY;
+
+            // Retry helper function
+            async function retryOperation(operation, maxRetries = 3, delay = 5000) {
+              let lastError;
+              for (let attempt = 1; attempt <= maxRetries; attempt++) {
+                try {
+                  return await operation();
+                } catch (error) {
+                  lastError = error;
+                  console.log(`Attempt ${attempt}/${maxRetries} failed: ${error.message}`);
+                  if (attempt < maxRetries) {
+                    console.log(`Waiting ${delay/1000} seconds before retry...`);
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                  }
+                }
+              }
+              throw lastError;
+            }
+
+            // Check if PR already exists
+            const prs = await retryOperation(async () => {
+              return github.rest.pulls.list({
+                owner,
+                repo,
+                head: `${owner}:${prBranch}`,
+                base: 'master',
+                state: 'open'
+              });
+            });
+
+            if (prs.data.length > 0) {
+              // Update existing PR
+              console.log(`Updating existing PR #${prs.data[0].number}`);
+              await retryOperation(async () => {
+                return github.rest.pulls.update({
+                  owner,
+                  repo,
+                  pull_number: prs.data[0].number,
+                  title: prTitle,
+                  body: prBody
+                });
+              });
+              console.log(`PR #${prs.data[0].number} updated successfully.`);
+            } else {
+              // Create new PR
+              try {
+                const result = await retryOperation(async () => {
+                  return github.rest.pulls.create({
+                    owner,
+                    repo,
+                    title: prTitle,
+                    body: prBody,
+                    head: prBranch,
+                    base: 'master'
+                  });
+                });
+                console.log(`PR created: ${result.data.html_url}`);
+              } catch (error) {
+                console.log(`All attempts to create PR failed: ${error.message}`);
+                
+                // As a fallback, output command for manual PR creation
+                console.log(`To create the PR manually, visit: https://github.com/${owner}/${repo}/compare/master...${prBranch}`);
+                throw error;
+              }
+            }
+
+  release:
+    name: release
+    if: ${{ github.ref == 'refs/heads/master' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: googleapis/release-please-action@v4
+        id: release
+        with:
+          release-type: simple
+      - uses: actions/checkout@v4
+      - name: tag stable versions
+        if: ${{ steps.release.outputs.release_created }}
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email github-actions[bot]@users.noreply.github.com
+          git remote add gh-token "https://${{ secrets.GITHUB_TOKEN }}@github.com/google-github-actions/release-please-action.git"
+          git tag -d stable || true
+          git push origin :stable || true
+          git tag -a stable -m "Last Stable Release v${{ steps.release.outputs.version }}"
+          git push origin stable
