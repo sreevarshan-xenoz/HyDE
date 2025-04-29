@@ -63,7 +63,7 @@ function load_zsh_plugins {
     for zsh_path in "${zsh_paths[@]}"; do [[ -d $zsh_path ]] && export ZSH=$zsh_path && break; done
     # Load Plugins
     hyde_plugins=(git zsh-256color zsh-autosuggestions zsh-syntax-highlighting)
-    plugins+=("${plugins[@]}" "${hyde_plugins[@]}" git zsh-256color zsh-autosuggestions zsh-syntax-highlighting)
+    plugins+=("${plugins[@]}" "${hyde_plugins[@]}")
     # Deduplicate plugins
     plugins=("${plugins[@]}")
     plugins=($(printf "%s\n" "${plugins[@]}" | sort -u))
@@ -244,7 +244,9 @@ LESSHISTFILE=${LESSHISTFILE:-/tmp/less-hist}
 PARALLEL_HOME="$XDG_CONFIG_HOME/parallel"
 SCREENRC="$XDG_CONFIG_HOME"/screen/screenrc
 
+HISTFILE=$HOME/.zsh_history # history file for zsh // fixes history not loaded on startup
+
 export XDG_CONFIG_HOME XDG_CONFIG_DIR XDG_DATA_HOME XDG_STATE_HOME XDG_CACHE_HOME XDG_DESKTOP_DIR XDG_DOWNLOAD_DIR \
-    XDG_TEMPLATES_DIR XDG_PUBLICSHARE_DIR XDG_DOCUMENTS_DIR XDG_MUSIC_DIR XDG_PICTURES_DIR XDG_VIDEOS_DIR SCREENRC
+    XDG_TEMPLATES_DIR XDG_PUBLICSHARE_DIR XDG_DOCUMENTS_DIR XDG_MUSIC_DIR XDG_PICTURES_DIR XDG_VIDEOS_DIR SCREENRC HISTFILE
 
 load_if_terminal
