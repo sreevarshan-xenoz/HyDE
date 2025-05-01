@@ -20,7 +20,7 @@ function command_not_found_handler {
 
     PM="pm.sh"
     # Try to find pm.sh in common locations
-    if [ ! command -v "${PM}" ] &>/dev/null; then
+    if ! command -v "${PM}" &>/dev/null; then
         for path in "/usr/lib/hyde" "/usr/local/lib/hyde" "$HOME/.local/lib/hyde" "$HOME/.local/bin"; do
             if [[ -x "$path/pm.sh" ]]; then
                 PM="$path/pm.sh"
@@ -123,7 +123,7 @@ function load_persistent_aliases {
     #! Persistent Aliases are loaded after zshrc is loaded you cannot overwrite them
     unset -f load_persistent_aliases
 
-    if [[ -x "$(which eza)" ]]; then
+    if [[ -x "$(command -v eza)" ]]; then
         alias l='eza -lh --icons=auto' \
             ll='eza -lha --icons=auto --sort=name --group-directories-first' \
             ld='eza -lhD --icons=auto' \
@@ -142,7 +142,7 @@ function load_omz_on_init() {
         #? This is a custom package manager for HyDE
         PM="pm.sh"
         # Try to find pm.sh in common locations
-        if [ ! which "${PM}" ] &>/dev/null; then
+        if ! command -v "${PM}" &>/dev/null; then
             for path in "/usr/lib/hyde" "/usr/local/lib/hyde" "$HOME/.local/lib/hyde" "$HOME/.local/bin"; do
                 if [[ -x "$path/pm.sh" ]]; then
                     PM="$path/pm.sh"
