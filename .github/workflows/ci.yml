@@ -30,7 +30,7 @@ jobs:
 
           # Calculate suggested merge date based on release policy
           # By default, suggesting next Monday as merge date - adjust according to your policy
-          MERGE_DATE="Late wednesday/early thursday"
+          MERGE_DATE="Friday"
 
           # Save commit list to a file (to handle multi-line output)
           echo "$COMMIT_LIST" > commit_list.txt
@@ -38,9 +38,14 @@ jobs:
           # Create a PR body with the commit list and suggested merge date
           echo "PR_BODY<<EOF" >> $GITHUB_ENV
           echo "This is an automated PR to promote changes from \`dev\` to \`master\`." >> $GITHUB_ENV
+          echo "Please review and test before merging." >> $GITHUB_ENV
+          echo "" >> $GITHUB_ENV
+          echo "## For Testers" >> $GITHUB_ENV
+          echo "See [TESTING.md](./TESTING.md) for complete testing instructions." >> $GITHUB_ENV
           echo "" >> $GITHUB_ENV
           echo "## Suggested Merge Schedule" >> $GITHUB_ENV
           echo "According to our release policy, this PR is expected to be merged on: **$MERGE_DATE**" >> $GITHUB_ENV
+          echo "Testers are encouraged to test the changes before merging." >> $GITHUB_ENV
           echo "Please note that this schedule may be adjusted based on the needs of the project." >> $GITHUB_ENV
           echo "## Commits to be merged:" >> $GITHUB_ENV
           echo "---" >> $GITHUB_ENV
@@ -72,7 +77,7 @@ jobs:
           script: |
             const { repo, owner } = context.repo;
             const prBranch = "automated-dev-to-master-branch";
-            const prTitle = "chore(rc):Promote dev changes to master"; 
+            const prTitle = "chore(dev):Promote `dev` to `master`";
             const prBody = process.env.PR_BODY;
 
             // Retry helper function
