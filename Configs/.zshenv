@@ -18,27 +18,13 @@ function command_not_found_handler {
     local purple='\e[1;35m' bright='\e[0;1m' green='\e[1;32m' reset='\e[0m'
     printf "${green}zsh${reset}: command ${purple}NOT${reset} found: ${bright}'%s'${reset}\n" "$1"
 
-    PM="pm.sh"
-    # Try to find pm.sh in common locations
-    if ! command -v "${PM}" &>/dev/null; then
-        for path in "/usr/lib/hyde" "/usr/local/lib/hyde" "$HOME/.local/lib/hyde" "$HOME/.local/bin"; do
-            if [[ -x "$path/pm.sh" ]]; then
-                PM="$path/pm.sh"
-                break
-            else
-                unset PM
-            fi
-        done
-    fi
-
-    if ! command -v "${PM}" &>/dev/null; then
-        printf "${bright}${red}We cannot find package manager script (${purple}pm.sh${red}) from ${green}HyDE${reset}\n"
+    if ! ${PM_COMMAND[@]} -h &>/dev/null; then
         return 127
     fi
 
-    printf "${bright}Searching for packages that provide '${bright}%s${green}'...${reset} " "$1"
+    printf "${bright}Searching for packages that provide '${bright}%s${green}'...\n${reset}" "${1}"
 
-    if ! "${PM}" fq "/usr/bin/$1"; then
+    if ! "${PM_COMMAND[@]}" fq "/usr/bin/$1"; then
         printf "${bright}${green}[ ${1} ]${reset} ${purple}NOT${reset} found in the system and no package provides it.\n"
         return 127
     else
@@ -138,18 +124,6 @@ function load_omz_on_init() {
         unset DEFER_OMZ_LOAD
         [[ -r $ZSH/oh-my-zsh.sh ]] && source $ZSH/oh-my-zsh.sh
 
-        # Load my package manager
-        #? This is a custom package manager for HyDE
-        PM="pm.sh"
-        # Try to find pm.sh in common locations
-        if ! command -v "${PM}" &>/dev/null; then
-            for path in "/usr/lib/hyde" "/usr/local/lib/hyde" "$HOME/.local/lib/hyde" "$HOME/.local/bin"; do
-                if [[ -x "$path/pm.sh" ]]; then
-                    PM="$path/pm.sh"
-                    break
-                fi
-            done
-        fi
         load_persistent_aliases
     fi
 }
@@ -197,17 +171,17 @@ function load_if_terminal {
         # TODO: add handlers in pm.sh
         # for these aliases please manually add the following lines to your .zshrc file.(Using yay as the aur helper)
         # pc='yay -Sc' # remove all cached packages
-        # po='yay -Qtdq | $PM -Rns -' # remove orphaned packages
+        # po='yay -Qtdq | ${PM_COMMAND[@]} -Rns -' # remove orphaned packages
 
         # Warn if the shell is slow to load
         add-zsh-hook -Uz precmd slow_load_warning
 
         alias c='clear' \
-            in='$PM install' \
-            un='$PM remove' \
-            up='$PM upgrade' \
-            pl='$PM search installed' \
-            pa='$PM search all' \
+            in='${PM_COMMAND[@]} install' \
+            un='${PM_COMMAND[@]} remove' \
+            up='${PM_COMMAND[@]} upgrade' \
+            pl='${PM_COMMAND[@]} search installed' \
+            pa='${PM_COMMAND[@]} search all' \
             vc='code' \
             fastfetch='fastfetch --logo-type kitty' \
             ..='cd ..' \
@@ -246,6 +220,9 @@ SCREENRC="$XDG_CONFIG_HOME"/screen/screenrc
 
 ZSH_AUTOSUGGEST_STRATEGY=(history completion)
 HISTFILE=${HISTFILE:-$HOME/.zsh_history}
+
+# HyDE Package Manager
+PM_COMMAND=(hyde-shell pm)
 
 export XDG_CONFIG_HOME XDG_CONFIG_DIR XDG_DATA_HOME XDG_STATE_HOME \
     XDG_CACHE_HOME XDG_DESKTOP_DIR XDG_DOWNLOAD_DIR \
