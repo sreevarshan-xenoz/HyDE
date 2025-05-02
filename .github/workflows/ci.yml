@@ -179,7 +179,110 @@ jobs:
               {"type":"ci","section":"Continuous Integration","hidden":false},
               {"type":"chore","section":"Miscellaneous Chores","hidden":true}
             ]
+
+      # Checkout code to work with tags and commits
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # Always update the latest release description, even if no new release is created
+      - name: Update Latest Release Description
+        if: ${{ !steps.release.outputs.release_created }}
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const { repo, owner } = context.repo;
+
+            // Get latest release
+            const releases = await github.rest.repos.listReleases({
+              owner,
+              repo,
+              per_page: 1
+            });
+
+            if (releases.data.length === 0) {
+              console.log('No releases found to update');
+              return;
+            }
+
+            const latestRelease = releases.data[0];
+            console.log(`Found latest release: ${latestRelease.tag_name}`);
+
+            // Get previous release to calculate commits in between
+            const allReleases = await github.rest.repos.listReleases({
+              owner,
+              repo,
+              per_page: 2
+            });
+
+            const previousTag = allReleases.data.length > 1 ? 
+              allReleases.data[1].tag_name : 
+              'HEAD~20'; // Fallback to last 20 commits if no previous release
+
+            // Get commits between the two tags
+            const { execSync } = require('child_process');
+            let commitList;
+            try {
+              commitList = execSync(
+                `git log --pretty=format:"* %s (%h)" ${previousTag}..${latestRelease.tag_name} | grep -v "Merge pull request"`
+              ).toString().trim();
+            } catch (e) {
+              console.log('Error getting commit list:', e);
+              commitList = 'Could not generate commit list automatically';
+            }
+
+            // Format the release notes with sections
+            const features = commitList.split('\n')
+              .filter(line => line.includes('feat:') || line.includes('feat('))
+              .join('\n');
+              
+            const fixes = commitList.split('\n')
+              .filter(line => line.includes('fix:') || line.includes('fix('))
+              .join('\n');
+              
+            const docs = commitList.split('\n')
+              .filter(line => line.includes('docs:') || line.includes('docs('))
+              .join('\n');
+              
+            const other = commitList.split('\n')
+              .filter(line => !line.includes('feat:') && !line.includes('fix:') && !line.includes('docs:') &&
+                             !line.includes('feat(') && !line.includes('fix(') && !line.includes('docs('))
+              .join('\n');
+
+            // Build release body
+            let releaseBody = `# What's Changed\n\n`;
+
+            if (features) {
+              releaseBody += `## Features\n${features}\n\n`;
+            }
+
+            if (fixes) {
+              releaseBody += `## Bug Fixes\n${fixes}\n\n`;
+            }
+
+            if (docs) {
+              releaseBody += `## Documentation\n${docs}\n\n`;
+            }
+
+            if (other) {
+              releaseBody += `## Other Changes\n${other}\n\n`;
+            }
+
+            releaseBody += `**Full Changelog**: https://github.com/${owner}/${repo}/compare/${previousTag}...${latestRelease.tag_name}`;
+
+            // Update the release
+            console.log(`Updating release ${latestRelease.id} with new description`);
+            await github.rest.repos.updateRelease({
+              owner,
+              repo,
+              release_id: latestRelease.id,
+              body: releaseBody
+            });
+
+            console.log('Release description updated successfully');
+
+      # Tag stable version (existing logic)
       - name: tag stable versions
         if: ${{ steps.release.outputs.release_created }}
         run: |
