@@ -29,7 +29,6 @@ from pyutils.xdg_base_dirs import (
 
 logger = logger.get_logger()
 
-
 MODULE_DIRS = [
     os.path.join(str(xdg_config_home()), "waybar", "modules"),
     os.path.join(str(xdg_data_home()), "waybar", "modules"),
@@ -103,7 +102,7 @@ def get_state_value(key, default=None):
 
 
 def set_state_value(key, value):
-    """Set or update a value in the state file."""
+    """Set or update a value in the state file, removing any duplicates."""
     STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
 
     if not STATE_FILE.exists():
@@ -111,20 +110,30 @@ def set_state_value(key, value):
             file.write(f"{key}={value}\n")
         return True
 
-    with open(STATE_FILE, "r") as file:
-        lines = file.readlines()
+    # Read existing lines and filter out duplicates
+    existing_lines = []
+    seen_keys = set()
+    if os.path.exists(STATE_FILE):
+        with open(STATE_FILE, "r") as file:
+            for line in file:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    current_key = line.split("=", 1)[0]
+                    if current_key not in seen_keys and current_key != key:
+                        existing_lines.append(line)
+                        seen_keys.add(current_key)
+                except Exception:
+                    # Keep lines that don't follow key=value format
+                    existing_lines.append(line)
 
-    key_updated = False
+    # Add the new key=value pair
+    existing_lines.append(f"{key}={value}")
+
+    # Write back all lines
     with open(STATE_FILE, "w") as file:
-        for line in lines:
-            if line.startswith(f"{key}="):
-                file.write(f"{key}={value}\n")
-                key_updated = True
-            else:
-                file.write(line)
-
-        if not key_updated:
-            file.write(f"{key}={value}\n")
+        file.write("\n".join(existing_lines) + "\n")
 
     return True
 
@@ -174,14 +183,9 @@ def get_current_layout_from_config():
     # Nothing found by hash, use first layout or create backup
     if not layout and layouts:
         logger.debug("No current layout found by hash comparison")
-        config_dir = CONFIG_JSONC.parent
-        layouts_dir = config_dir / "layouts"
-        layouts_dir.mkdir(parents=True, exist_ok=True)
-        timestamp = time.strftime("%Y%m%d_%H%M%S")
-        backup_path = os.path.join(layouts_dir, "backup", f"{timestamp}_config.jsonc")
-        os.makedirs(os.path.dirname(backup_path), exist_ok=True)
-        shutil.copyfile(CONFIG_JSONC, backup_path)
-        logger.debug(f"Saved current config to {backup_path}")
+        # Create backup of current config before switching to first layout
+        current_layout_name = "unknown"
+        backup_layout(current_layout_name)
         layout = layouts[0]
 
         # Update state file with default layout
@@ -295,10 +299,11 @@ def resolve_style_path(layout_path):
 
 def set_layout(layout):
     """Set the layout and corresponding style."""
-    layout_style_pairs = list_layouts()
+    layouts_data = list_layouts()
     layout_path = None
 
-    for pair in layout_style_pairs:
+    # Only search through regular layouts, not backups
+    for pair in layouts_data["layouts"]:
         if layout == pair["layout"] or layout == pair["name"]:
             layout_path = pair["layout"]
             break
@@ -327,17 +332,20 @@ def set_layout(layout):
     update_border_radius()
     generate_includes()
     update_global_css()
-    notify.send(
-        "Waybar",
-        f"Layout changed to {layout}",
-    )
+    notify.send("Waybar", f"Layout changed to {layout}", replace_id=9)
     run_waybar_command("killall waybar; waybar & disown")
 
 
 def handle_layout_navigation(option):
     """Handle --next, --prev, and --set options."""
-    layouts = find_layout_files()
+    layouts_data = list_layouts()
+    layout_list = [
+        layout["layout"]
+        for layout in layouts_data["layouts"]
+        if not layout.get("is_backup_entry")
+    ]
     current_layout = None
+
     with open(STATE_FILE, "r") as file:
         for line in file:
             if line.startswith("WAYBAR_LAYOUT_PATH="):
@@ -348,20 +356,20 @@ def handle_layout_navigation(option):
         logger.error("Current layout not found in state file.")
         return
 
-    if current_layout not in layouts:
+    if current_layout not in layout_list:
         logger.warning("Current layout file not found, re-caching layouts.")
         current_layout = get_current_layout_from_config()
         if not current_layout:
             logger.error("Failed to recache current layout.")
             return
 
-    current_index = layouts.index(current_layout)
+    current_index = layout_list.index(current_layout)
     if option == "--next":
-        next_index = (current_index + 1) % len(layouts)
-        set_layout(layouts[next_index])
+        next_index = (current_index + 1) % len(layout_list)
+        set_layout(layout_list[next_index])
     elif option == "--prev":
-        prev_index = (current_index - 1 + len(layouts)) % len(layouts)
-        set_layout(layouts[prev_index])
+        prev_index = (current_index - 1 + len(layout_list)) % len(layout_list)
+        set_layout(layout_list[prev_index])
     elif option == "--set":
         if len(sys.argv) < 3:
             logger.error("Usage: --set <layout>")
@@ -371,26 +379,55 @@ def handle_layout_navigation(option):
 
 
 def list_layouts():
-    """List all layouts with their matching styles."""
+    """List all layouts with their matching styles and backups."""
     layouts = find_layout_files()
     layout_style_pairs = []
+    backup_layouts = []
+
     for layout in layouts:
         for layout_dir in LAYOUT_DIRS:
             if layout.startswith(layout_dir):
                 relative_path = os.path.relpath(layout, start=layout_dir)
+                # Check if this is a backup layout
+                if "/backup/" in layout or "\\backup\\" in layout:
+                    name = relative_path.replace(".jsonc", "")
+                    backup_layouts.append(
+                        {
+                            "layout": layout,
+                            "name": name,
+                            "style": "",  # Backups don't need styles
+                        }
+                    )
+                    continue
+
                 name = relative_path.replace(".jsonc", "")
                 style_path = resolve_style_path(layout)
                 layout_style_pairs.append(
                     {"layout": layout, "name": name, "style": style_path}
                 )
                 break
-    return layout_style_pairs
+
+    # Create the final structure with both layouts and backups
+    result = {"layouts": layout_style_pairs, "backups": backup_layouts}
+
+    # Add backup count as a special entry in layouts if there are any backups
+    if len(backup_layouts) > 0:
+        layout_style_pairs.append(
+            {
+                "layout": "",  # Empty since this is just informational
+                "name": f"List all {len(backup_layouts)} Backup(s) saved",
+                "style": "",
+                "is_backup_entry": True,  # Flag to identify this special entry
+            }
+        )
+
+    return result
 
 
 def list_layouts_json():
-    """List all layouts in JSON format with their matching styles."""
-    layout_style_pairs = list_layouts()
-    layouts_json = json.dumps(layout_style_pairs, indent=4)
+    """List all layouts in JSON format with their matching styles and backups."""
+    layouts_data = list_layouts()
+    layouts_json = json.dumps(layouts_data, indent=4)
     print(layouts_json)
     sys.exit(0)
 
@@ -489,14 +526,20 @@ def ensure_directory_exists(filepath):
 
 def rofi_selector():
     """List all layout names in a rofi selector."""
-    layout_style_pairs = list_layouts()
-    layout_names = [pair["name"] for pair in layout_style_pairs]
-    current_layout = [
-        pair["name"]
-        for pair in layout_style_pairs
-        if pair["layout"] == get_current_layout_from_config()
-    ]
-    logger.debug(f"Current layout: {current_layout}")
+    layouts_data = list_layouts()
+    layout_names = [pair["name"] for pair in layouts_data["layouts"]]
+
+    # Get current layout from state file directly
+    current_layout_name = get_state_value("WAYBAR_LAYOUT_NAME")
+    if not current_layout_name:
+        current_layout_path = get_state_value("WAYBAR_LAYOUT_PATH")
+        if current_layout_path:
+            current_layout_name = os.path.basename(current_layout_path).replace(
+                ".jsonc", ""
+            )
+
+    # current_layout = [current_layout_name] if current_layout_name else []
+    logger.debug(f"Current layout from state: {current_layout_name}")
 
     hyprland = HYPRLAND.HyprctlWrapper()
 
@@ -507,7 +550,7 @@ def rofi_selector():
         "-p",
         "Select layout:",
         "-select",
-        current_layout[0],
+        current_layout_name,
         "-theme",
         "clipboard",
         "-theme-str",
@@ -523,8 +566,12 @@ def rofi_selector():
     if selected_layout:
         # Find matching layout from selection
         selected_layout_path = None
-        for pair in layout_style_pairs:
+        for pair in layouts_data["layouts"]:
             if pair["name"] == selected_layout:
+                # Check if this is the backup count entry
+                if pair.get("is_backup_entry", False):
+                    handle_backup_display()
+                    return
                 selected_layout_path = pair["layout"]
                 style_path = pair["style"]
                 break
@@ -539,10 +586,6 @@ def rofi_selector():
             set_state_value("WAYBAR_LAYOUT_NAME", selected_layout)
             set_state_value("WAYBAR_STYLE_PATH", style_path)
 
-            print(f"WAYBAR_LAYOUT_PATH={selected_layout_path}")
-            print(f"WAYBAR_LAYOUT_NAME={selected_layout}")
-            print(f"WAYBAR_STYLE_PATH={style_path}")
-
             # Update style.css
             style_filepath = xdg_config_home() / "waybar/style.css"
             write_style_file(style_filepath, style_path)
@@ -550,15 +593,77 @@ def rofi_selector():
             update_border_radius()
             generate_includes()
             update_global_css()
-            notify.send(
-                "Waybar",
-                f"Layout changed to {selected_layout}",
-            )
+            notify.send("Waybar", f"Layout changed to {selected_layout}", replace_id=9)
             run_waybar_command("killall waybar; waybar & disown")
         else:
             logger.error(f"Could not find layout path for {selected_layout}")
 
     ensure_state_file()
+    sys.exit(0)
+
+
+def backup_layout(layout_name):
+    """Backup the current config.jsonc file to a layout-specific named backup.
+
+    Args:
+        layout_name: Name of the layout to use in backup filename
+    Returns:
+        str: Path to the created backup file
+    """
+    if not CONFIG_JSONC.exists():
+        logger.debug("No config file to backup")
+        return None
+
+    config_dir = CONFIG_JSONC.parent
+    layouts_dir = config_dir / "layouts"
+    layouts_dir.mkdir(parents=True, exist_ok=True)
+    backup_dir = layouts_dir / "backup"
+    backup_dir.mkdir(parents=True, exist_ok=True)
+
+    timestamp = time.strftime("%Y%m%d_%H%M%S")
+    backup_filename = f"{layout_name}_{timestamp}.jsonc"
+    backup_path = backup_dir / backup_filename
+
+    try:
+        shutil.copyfile(CONFIG_JSONC, backup_path)
+        logger.debug(f"Created backup at {backup_path}")
+        return str(backup_path)
+    except Exception as e:
+        logger.error(f"Failed to create backup: {e}")
+        return None
+
+
+def handle_backup_display():
+    """Show a menu of backup layouts and allow trying them before applying."""
+    layouts_data = list_layouts()
+    backup_layouts = layouts_data["backups"]
+
+    if not backup_layouts:
+        notify.send("Waybar", "No backup layouts found", replace_id=9)
+        return
+
+    # Format backup names for display
+    backup_names = [pair["name"] for pair in backup_layouts]
+
+    hyprland = HYPRLAND.HyprctlWrapper()
+    override_string = hyprland.get_rofi_override_string()
+    rofi_pos_string = hyprland.get_rofi_pos()
+
+    rofi_flags = [
+        "-p",
+        "Select a backup to try:",
+        "-theme",
+        "clipboard",
+        "-theme-str",
+        override_string,
+        "-theme-str",
+        rofi_pos_string,
+    ]
+
+    rofi_dmenu(
+        backup_names,
+        rofi_flags,
+    )
     sys.exit(0)
 
 
@@ -586,21 +691,10 @@ def main():
             layout_hash = get_file_hash(layout_path)
 
             if config_hash != layout_hash:
-                logger.debug(f"Config hash differs from layout hash, creating backup")
-                # Config has been modified, create a backup
-                config_dir = CONFIG_JSONC.parent
-                layouts_dir = config_dir / "layouts"
-                layouts_dir.mkdir(parents=True, exist_ok=True)
-                backup_dir = layouts_dir / "backup"
-                backup_dir.mkdir(parents=True, exist_ok=True)
-                timestamp = time.strftime("%Y%m%d_%H%M%S")
-                backup_path = backup_dir / f"{timestamp}_config.jsonc"
-
-                try:
-                    shutil.copyfile(CONFIG_JSONC, backup_path)
-                    logger.debug(f"Created backup of modified config at {backup_path}")
-                except Exception as e:
-                    logger.error(f"Failed to create backup: {e}")
+                logger.debug("Config hash differs from layout hash, creating backup")
+                # Get the current layout name for the backup filename
+                layout_name = os.path.basename(layout_path).replace(".jsonc", "")
+                backup_layout(layout_name)
 
             # Force update config.jsonc with the layout from state file
             try:
@@ -626,21 +720,7 @@ def main():
 
                         if config_hash != layout_hash:
                             # Config has been modified, create a backup
-                            config_dir = CONFIG_JSONC.parent
-                            layouts_dir = config_dir / "layouts"
-                            layouts_dir.mkdir(parents=True, exist_ok=True)
-                            backup_dir = layouts_dir / "backup"
-                            backup_dir.mkdir(parents=True, exist_ok=True)
-                            timestamp = time.strftime("%Y%m%d_%H%M%S")
-                            backup_path = backup_dir / f"{timestamp}_config.jsonc"
-
-                            try:
-                                shutil.copyfile(CONFIG_JSONC, backup_path)
-                                logger.debug(
-                                    f"Created backup of modified config at {backup_path}"
-                                )
-                            except Exception as e:
-                                logger.error(f"Failed to create backup: {e}")
+                            backup_layout(layout_name)
 
                         # Update state file with corrected layout path
                         set_state_value("WAYBAR_LAYOUT_PATH", layout)
@@ -733,7 +813,7 @@ def main():
     args = parser.parse_args()
 
     # Always check current layout from state first
-    current_layout = get_current_layout_from_config()
+    # current_layout = get_current_layout_from_config()
 
     ensure_state_file()
 
