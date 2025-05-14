@@ -301,29 +301,25 @@ def set_layout(layout):
     """Set the layout and corresponding style."""
     layouts_data = list_layouts()
     layout_path = None
+    layout_name = None
+    style_path = None
 
     # Only search through regular layouts, not backups
     for pair in layouts_data["layouts"]:
         if layout == pair["layout"] or layout == pair["name"]:
             layout_path = pair["layout"]
+            layout_name = pair["name"]
+            style_path = pair["style"]
             break
 
     if not layout_path:
         logger.error(f"Layout {layout} not found")
         sys.exit(1)
 
-    style_path = resolve_style_path(layout_path)
-
-    with open(STATE_FILE, "r") as file:
-        lines = file.readlines()
-    with open(STATE_FILE, "w") as file:
-        for line in lines:
-            if line.startswith("WAYBAR_LAYOUT_PATH="):
-                file.write(f"WAYBAR_LAYOUT_PATH={layout_path}\n")
-            elif line.startswith("WAYBAR_STYLE_PATH="):
-                file.write(f"WAYBAR_STYLE_PATH={style_path}\n")
-            else:
-                file.write(line)
+    # Update all state values
+    set_state_value("WAYBAR_LAYOUT_PATH", layout_path)
+    set_state_value("WAYBAR_LAYOUT_NAME", layout_name)
+    set_state_value("WAYBAR_STYLE_PATH", style_path)
 
     style_filepath = xdg_config_home() / "waybar/style.css"
     shutil.copyfile(layout_path, CONFIG_JSONC)
