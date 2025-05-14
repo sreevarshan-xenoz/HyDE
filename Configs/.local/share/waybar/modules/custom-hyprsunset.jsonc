@@ -8,11 +8,12 @@
     },
     "exec": "hyde-shell hyprsunset.sh r q",
     "rotate": 0,
-    "on-click": "hyde-shell hyprsunset.sh t",
-    "on-scroll-up": "hyde-shell hyprsunset.sh i",
-    "on-scroll-down": "hyde-shell hyprsunset.sh d",
-    "interval": 1,
+    "on-click": "hyde-shell hyprsunset.sh t;pkill -RTMIN+19 waybar",
+    "on-scroll-up": "hyde-shell hyprsunset.sh i;pkill -RTMIN+19 waybar",
+    "on-scroll-down": "hyde-shell hyprsunset.sh d;pkill -RTMIN+19 waybar",
+    "interval": "once",
     "tooltip": true,
-    "escape": true
+    "escape": true,
+    "signal": 19
   }
 }
