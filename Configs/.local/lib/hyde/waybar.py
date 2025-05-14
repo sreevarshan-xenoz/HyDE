@@ -711,9 +711,6 @@ def cleanup():
             logger.error(f"Failed to remove lock file during cleanup: {e}")
 
 
-# Register cleanup handler
-import atexit
-
 atexit.register(cleanup)
 
 
@@ -749,7 +746,7 @@ def main():
             # Force update config.jsonc with the layout from state file
             try:
                 shutil.copyfile(layout_path, CONFIG_JSONC)
-                logger.debug(f"Updated config.jsonc with layout from state file")
+                logger.debug("Updated config.jsonc with layout from state file")
             except Exception as e:
                 logger.error(f"Failed to update config.jsonc: {e}")
 
@@ -778,7 +775,7 @@ def main():
                         # Force update config.jsonc with the layout by name
                         try:
                             shutil.copyfile(layout, CONFIG_JSONC)
-                            logger.debug(f"Updated config.jsonc with layout by name")
+                            logger.debug("Updated config.jsonc with layout by name")
                         except Exception as e:
                             logger.error(f"Failed to update config.jsonc: {e}")
                         break
