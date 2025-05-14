@@ -11,6 +11,7 @@ import time
 import sys
 import hashlib
 import signal
+import atexit
 
 from pathlib import Path
 
@@ -508,9 +509,9 @@ def run_waybar_command(command):
 
 
 def kill_waybar():
-    """Kill any running Waybar instances and the watcher script."""
-    subprocess.run(["pkill", "-f", "waybar"])
-    logger.debug("Killed all Waybar instances and watcher script.")
+    """Kill only the Waybar process, not anything with 'waybar' in the name."""
+    subprocess.run(["pkill", "-x", "waybar"])  # -x for exact match
+    logger.debug("Killed Waybar processes.")
 
 
 def ensure_directory_exists(filepath):
@@ -663,6 +664,59 @@ def handle_backup_display():
     sys.exit(0)
 
 
+def manage_waybar_lock(action="toggle"):
+    """Manage the waybar hide lock file.
+
+    Args:
+        action: "toggle", "hide", or "show"
+    Returns:
+        bool: True if waybar should be hidden, False otherwise
+    """
+    lock_file = xdg_runtime_dir() / "hyde/waybar_hide.lock"
+    lock_file.parent.mkdir(parents=True, exist_ok=True)
+
+    if action == "toggle":
+        if lock_file.exists():
+            lock_file.unlink()
+            logger.debug("Removed waybar hide lock file")
+            return False
+        else:
+            lock_file.touch()
+            logger.debug("Created waybar hide lock file")
+            return True
+    elif action == "hide":
+        lock_file.touch()
+        logger.debug("Created waybar hide lock file")
+        return True
+    elif action == "show":
+        if lock_file.exists():
+            lock_file.unlink()
+            logger.debug("Removed waybar hide lock file")
+        return False
+
+
+def cleanup():
+    """Clean up resources and lock files."""
+    lock_file = xdg_runtime_dir() / "hyde/waybar_hide.lock"
+    if lock_file.exists():
+        try:
+            # Only remove lock if waybar.py is the last instance running
+            result = subprocess.run(
+                ["pgrep", "-c", "waybar.py"], capture_output=True, text=True
+            )
+            if result.returncode == 0 and int(result.stdout.strip()) <= 1:
+                lock_file.unlink()
+                logger.debug("Removed waybar hide lock file during cleanup")
+        except Exception as e:
+            logger.error(f"Failed to remove lock file during cleanup: {e}")
+
+
+# Register cleanup handler
+import atexit
+
+atexit.register(cleanup)
+
+
 def main():
     # Set up logging and debug information
     logger.debug("Starting waybar.py")
@@ -794,6 +848,14 @@ def main():
         action="store_true",
         help="Kill all Waybar instances and watcher script",
     )
+    parser.add_argument(
+        "--hide",
+        nargs="?",
+        const="toggle",
+        type=str,
+        choices=["0", "1", "toggle"],
+        help="Hide waybar (1), show waybar (0), or toggle hide state (no argument)",
+    )
 
     # First check and ensure state file exists
     if not STATE_FILE.exists() or STATE_FILE.stat().st_size == 0:
@@ -839,6 +901,23 @@ def main():
         list_layouts_json()
     if args.select:
         rofi_selector()
+
+    # Handle hide argument
+    if args.hide is not None:
+        if args.hide == "1":
+            if manage_waybar_lock("hide"):
+                kill_waybar()
+                sys.exit(0)
+        elif args.hide == "0":
+            manage_waybar_lock("show")
+            run_waybar_command("killall waybar; waybar & disown")
+            sys.exit(0)
+        else:  # toggle
+            if manage_waybar_lock("toggle"):
+                kill_waybar()
+            else:
+                run_waybar_command("killall waybar; waybar & disown")
+            sys.exit(0)
 
     if args.kill:
         kill_waybar()
@@ -1147,9 +1226,17 @@ def update_style(style_path):
 def watch_waybar():
     signal.signal(signal.SIGTERM, signal_handler)
     signal.signal(signal.SIGINT, signal_handler)
+    lock_file = xdg_runtime_dir() / "hyde/waybar_hide.lock"
+
     while True:
         try:
-            result = subprocess.run(["pgrep", "waybar"], capture_output=True)
+            # Don't revive waybar if lock file exists
+            if lock_file.exists():
+                time.sleep(2)
+                continue
+
+            # Use ps to check specifically for waybar process
+            result = subprocess.run(["ps", "-C", "waybar"], capture_output=True)
             if result.returncode != 0:
                 run_waybar_command("killall waybar; waybar & disown")
                 logger.debug("Waybar restarted")
