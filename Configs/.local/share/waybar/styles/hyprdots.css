@@ -244,3 +244,8 @@ tooltip {
 #tray menu separator {
     min-height: 0.1em;
 }
+
+
+#language {
+    min-width: 1.11em;
+}

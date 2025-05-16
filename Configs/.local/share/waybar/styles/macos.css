@@ -82,3 +82,7 @@ tooltip {
     padding: 0.5em;
     /* font-size: 1.21em; */
 }
+
+#language {
+    min-width: 1.11em;
+}
