@@ -23,8 +23,34 @@ jobs:
           chmod +x .github/scripts/promote_to_master.sh
           bash .github/scripts/promote_to_master.sh
 
+      # Check if there are any commits between master and dev
+      - name: Check for commits between branches
+        id: check-commits
+        run: |
+          # Fetch master branch to make sure it exists locally
+          git fetch origin master:master || true
+
+          # We're already on dev branch since the job runs when dev is pushed
+          # Compare dev to master to see if there are any differences
+          if git rev-parse --verify master >/dev/null 2>&1; then
+            COMMIT_COUNT=$(git rev-list --count master..dev)
+            echo "commit_count=$COMMIT_COUNT" >> $GITHUB_OUTPUT
+            if [ "$COMMIT_COUNT" -gt 0 ]; then
+              echo "Detected $COMMIT_COUNT commit(s) between master and dev"
+              echo "has_commits=true" >> $GITHUB_OUTPUT
+            else
+              echo "No commits detected between master and dev"
+              echo "has_commits=false" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "Master branch doesn't exist yet. Assuming changes need to be propagated."
+            echo "commit_count=999" >> $GITHUB_OUTPUT  # Use a high number to indicate there are changes
+            echo "has_commits=true" >> $GITHUB_OUTPUT
+          fi
+
       # Use a fixed branch name for the PR
       - name: Update dev-to-master branch
+        if: steps.check-commits.outputs.has_commits == 'true'
         run: |
           # Setup git
           git config user.name "GitHub Actions Bot"
@@ -36,23 +62,6 @@ jobs:
           # Force-push current dev state to the fixed branch
           git checkout -b $BRANCH_NAME
           git push --force origin $BRANCH_NAME
-
-      # Check if there are any commits between master and our branch
-      - name: Check for commits between branches
-        id: check-commits
-        run: |
-          # Compare the branches to see if there are any differences
-          COMMIT_COUNT=$(git rev-list --count master..$BRANCH_NAME)
-          echo "commit_count=$COMMIT_COUNT" >> $GITHUB_OUTPUT
-          if [ "$COMMIT_COUNT" -gt 0 ]; then
-            echo "Detected $COMMIT_COUNT commit(s) between master and $BRANCH_NAME"
-            echo "has_commits=true" >> $GITHUB_OUTPUT
-          else
-            echo "No commits detected between master and $BRANCH_NAME"
-            echo "has_commits=false" >> $GITHUB_OUTPUT
-          fi
-        env:
-          BRANCH_NAME: "automated-dev-to-master-branch"
 
       # Create or update PR using GitHub API with retry logic
       - name: Create or Update Pull Request
