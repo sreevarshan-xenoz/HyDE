@@ -48,20 +48,12 @@ jobs:
             echo "has_commits=true" >> $GITHUB_OUTPUT
           fi
 
-      # Use a fixed branch name for the PR
-      - name: Update dev-to-master branch
+      # Set up git for potential operations
+      - name: Setup git
         if: steps.check-commits.outputs.has_commits == 'true'
         run: |
-          # Setup git
           git config user.name "GitHub Actions Bot"
           git config user.email "actions@github.com"
-
-          # Use a fixed branch name for consistency
-          BRANCH_NAME="automated-dev-to-master-branch"
-
-          # Force-push current dev state to the fixed branch
-          git checkout -b $BRANCH_NAME
-          git push --force origin $BRANCH_NAME
 
       # Create or update PR using GitHub API with retry logic
       - name: Create or Update Pull Request
@@ -71,7 +63,7 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const { repo, owner } = context.repo;
-            const prBranch = "automated-dev-to-master-branch";
+            const prBranch = "dev";
             const prTitle = "chore: release automated changes from dev to master";
             const prBody = process.env.PR_BODY;
 
