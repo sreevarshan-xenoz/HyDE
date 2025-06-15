@@ -8,13 +8,28 @@ from pathlib import Path
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
                             QHBoxLayout, QPushButton, QLabel, QStackedWidget, 
                             QComboBox, QCheckBox, QScrollArea, QFrame,
-                            QSplitter, QTextEdit, QMessageBox)
-from PyQt6.QtCore import Qt, QSize
-from PyQt6.QtGui import QIcon, QPixmap
+                            QSplitter, QTextEdit, QMessageBox, QLineEdit,
+                            QTabWidget, QGroupBox, QFormLayout)
+from PyQt6.QtCore import Qt, QSize, pyqtSignal, QThread
+from PyQt6.QtGui import QIcon, QPixmap, QTextCursor
 
 # Import our custom modules
 from theme_previewer import ThemePreviewGenerator
 from settings_manager import SettingsManager
+from ai_assistant import AIAssistant
+
+# Add a worker thread for AI processing
+class AIWorker(QThread):
+    finished = pyqtSignal(dict)
+    
+    def __init__(self, ai_assistant, user_input):
+        super().__init__()
+        self.ai_assistant = ai_assistant
+        self.user_input = user_input
+    
+    def run(self):
+        result = self.ai_assistant.process_request(self.user_input)
+        self.finished.emit(result)
 
 class HyDEGUI(QMainWindow):
     def __init__(self):
@@ -25,6 +40,7 @@ class HyDEGUI(QMainWindow):
         # Initialize components
         self.theme_previewer = ThemePreviewGenerator()
         self.settings_manager = SettingsManager()
+        self.ai_assistant = AIAssistant(self.settings_manager)
         
         # Main widget and layout
         main_widget = QWidget()
@@ -40,6 +56,7 @@ class HyDEGUI(QMainWindow):
         self.create_install_page()
         self.create_theme_page()
         self.create_settings_page()
+        self.create_ai_assistant_page()  # New AI Assistant page
         
         # Navigation buttons
         nav_layout = QHBoxLayout()
@@ -365,6 +382,189 @@ class HyDEGUI(QMainWindow):
                                f"The {theme_name} theme would be applied to your system.")
         # TODO: Actually apply the theme
     
+    def create_ai_assistant_page(self):
+        """Create the AI Assistant page"""
+        page = QWidget()
+        layout = QVBoxLayout(page)
+        
+        # Title
+        title_label = QLabel("AI Configuration Assistant")
+        title_label.setStyleSheet("font-size: 24px; font-weight: bold;")
+        layout.addWidget(title_label)
+        
+        # Description
+        desc_label = QLabel("Use natural language to configure your HyDE desktop environment.")
+        layout.addWidget(desc_label)
+        
+        # Create a splitter for the chat interface and settings preview
+        splitter = QSplitter(Qt.Orientation.Horizontal)
+        layout.addWidget(splitter)
+        
+        # Left side - chat interface
+        left_widget = QWidget()
+        left_layout = QVBoxLayout(left_widget)
+        
+        # Chat history
+        self.chat_history = QTextEdit()
+        self.chat_history.setReadOnly(True)
+        left_layout.addWidget(QLabel("Chat History:"))
+        left_layout.addWidget(self.chat_history)
+        
+        # User input
+        input_layout = QHBoxLayout()
+        self.user_input = QLineEdit()
+        self.user_input.setPlaceholderText("Type your request here...")
+        self.user_input.returnPressed.connect(self.send_ai_request)
+        input_layout.addWidget(self.user_input)
+        
+        send_btn = QPushButton("Send")
+        send_btn.clicked.connect(self.send_ai_request)
+        input_layout.addWidget(send_btn)
+        
+        left_layout.addLayout(input_layout)
+        
+        # Clear conversation button
+        clear_btn = QPushButton("Clear Conversation")
+        clear_btn.clicked.connect(self.clear_ai_conversation)
+        left_layout.addWidget(clear_btn)
+        
+        splitter.addWidget(left_widget)
+        
+        # Right side - settings preview
+        right_widget = QWidget()
+        right_layout = QVBoxLayout(right_widget)
+        
+        right_layout.addWidget(QLabel("Settings Preview:"))
+        
+        # Settings preview area
+        self.settings_preview = QTextEdit()
+        self.settings_preview.setReadOnly(True)
+        right_layout.addWidget(self.settings_preview)
+        
+        # Apply changes button
+        self.apply_changes_btn = QPushButton("Apply Changes")
+        self.apply_changes_btn.clicked.connect(self.apply_ai_changes)
+        right_layout.addWidget(self.apply_changes_btn)
+        
+        splitter.addWidget(right_widget)
+        
+        # Set initial splitter sizes
+        splitter.setSizes([400, 400])
+        
+        # API Key section
+        api_group = QGroupBox("AI API Settings")
+        api_layout = QFormLayout()
+        
+        self.api_key_input = QLineEdit()
+        self.api_key_input.setEchoMode(QLineEdit.EchoMode.Password)
+        self.api_key_input.setText(self.ai_assistant.api_key)
+        api_layout.addRow("OpenAI API Key:", self.api_key_input)
+        
+        save_key_btn = QPushButton("Save API Key")
+        save_key_btn.clicked.connect(self.save_api_key)
+        api_layout.addRow("", save_key_btn)
+        
+        api_group.setLayout(api_layout)
+        layout.addWidget(api_group)
+        
+        self.stacked_widget.addWidget(page)
+        
+        # Add initial welcome message
+        self.add_ai_message("Hello! I'm your HyDE configuration assistant. How can I help you customize your desktop environment today?")
+    
+    def send_ai_request(self):
+        """Send a request to the AI assistant"""
+        user_input = self.user_input.text().strip()
+        if not user_input:
+            return
+        
+        # Add user message to chat
+        self.add_user_message(user_input)
+        
+        # Clear input field
+        self.user_input.clear()
+        
+        # Show processing message
+        self.add_ai_message("Processing your request...")
+        
+        # Create and start worker thread
+        self.ai_worker = AIWorker(self.ai_assistant, user_input)
+        self.ai_worker.finished.connect(self.handle_ai_response)
+        self.ai_worker.start()
+    
+    def handle_ai_response(self, result):
+        """Handle the AI response"""
+        # Remove the "Processing" message
+        self.chat_history.moveCursor(QTextCursor.MoveOperation.End)
+        self.chat_history.moveCursor(QTextCursor.MoveOperation.StartOfLine, QTextCursor.MoveMode.KeepAnchor)
+        self.chat_history.textCursor().removeSelectedText()
+        self.chat_history.textCursor().deletePreviousChar()
+        
+        if result["success"]:
+            # Add AI response to chat
+            self.add_ai_message(result["message"])
+            
+            # Update settings preview
+            self.update_settings_preview(result["changes"])
+        else:
+            # Show error message
+            self.add_ai_message(f"Error: {result['message']}")
+    
+    def add_user_message(self, message):
+        """Add a user message to the chat history"""
+        self.chat_history.append(f"<b>You:</b> {message}")
+        self.chat_history.append("")
+    
+    def add_ai_message(self, message):
+        """Add an AI message to the chat history"""
+        self.chat_history.append(f"<b>Assistant:</b> {message}")
+        self.chat_history.append("")
+    
+    def clear_ai_conversation(self):
+        """Clear the AI conversation history"""
+        self.chat_history.clear()
+        self.ai_assistant.clear_conversation()
+        self.add_ai_message("Hello! I'm your HyDE configuration assistant. How can I help you customize your desktop environment today?")
+        self.settings_preview.clear()
+    
+    def update_settings_preview(self, changes):
+        """Update the settings preview with the changes"""
+        if not changes:
+            self.settings_preview.setText("No changes were made.")
+            return
+        
+        preview_text = "<h3>Proposed Changes:</h3><ul>"
+        for change in changes:
+            preview_text += f"<li><b>{change['category']}.{change['key']}</b>: {change['value']}</li>"
+        preview_text += "</ul>"
+        
+        self.settings_preview.setHtml(preview_text)
+    
+    def apply_ai_changes(self):
+        """Apply the AI-suggested changes"""
+        # The changes are already applied in the AI assistant's process_request method
+        # This is just to confirm and refresh the UI
+        QMessageBox.information(self, "Changes Applied", "The suggested changes have been applied to your configuration.")
+        
+        # Refresh the settings page if it exists
+        if hasattr(self, 'settings_page'):
+            self.refresh_settings_page()
+    
+    def save_api_key(self):
+        """Save the API key"""
+        api_key = self.api_key_input.text().strip()
+        if api_key:
+            self.ai_assistant.save_api_key(api_key)
+            QMessageBox.information(self, "API Key Saved", "Your API key has been saved successfully.")
+        else:
+            QMessageBox.warning(self, "Invalid API Key", "Please enter a valid API key.")
+    
+    def refresh_settings_page(self):
+        """Refresh the settings page with current values"""
+        # This method would update the settings page UI with the current settings
+        # Implementation depends on how the settings page is structured
+        pass
+    
     def previous_page(self):
         if self.current_page > 0:
             self.current_page -= 1
@@ -372,17 +572,21 @@ class HyDEGUI(QMainWindow):
             self.update_navigation()
     
     def next_page(self):
+        """Go to the next page"""
         if self.current_page < self.stacked_widget.count() - 1:
             self.current_page += 1
             self.stacked_widget.setCurrentIndex(self.current_page)
             self.update_navigation()
-        else:
+        elif self.current_page == self.stacked_widget.count() - 1:
+            # On the last page, the "Next" button becomes "Finish"
             self.install_hyde()
     
     def update_navigation(self):
+        """Update navigation buttons based on current page"""
         self.prev_btn.setEnabled(self.current_page > 0)
+        
         if self.current_page == self.stacked_widget.count() - 1:
-            self.next_btn.setText("Install")
+            self.next_btn.setText("Finish")
         else:
             self.next_btn.setText("Next")
     

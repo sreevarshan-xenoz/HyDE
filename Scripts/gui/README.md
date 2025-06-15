@@ -8,12 +8,14 @@ This directory contains a graphical user interface (GUI) for installing and conf
 - **Theme Preview System**: Preview themes before applying them
 - **Settings Manager**: Centralized settings management for all HyDE components
 - **First-time Setup Wizard**: Helps new users configure their environment
+- **AI Configuration Assistant**: Natural language interface for configuring HyDE
 
 ## Requirements
 
 - Python 3.6 or higher
 - PyQt6
 - pip (Python package manager)
+- OpenAI API key (for AI Assistant feature)
 
 ## Installation
 
@@ -53,6 +55,7 @@ This directory contains a graphical user interface (GUI) for installing and conf
 - **hyde-gui.py**: Main GUI application with installation wizard and settings manager
 - **theme_previewer.py**: Theme preview generator
 - **settings_manager.py**: Centralized settings manager
+- **ai_assistant.py**: AI-powered configuration assistant
 - **requirements.txt**: Python dependencies
 - **launch_hyde_gui.sh**: Linux launcher script
 - **launch_hyde_gui.bat**: Windows launcher script
@@ -67,7 +70,8 @@ The GUI installer guides you through the following steps:
 2. **Installation Options**: Select packages to install
 3. **Theme Selection**: Choose and preview themes
 4. **Settings**: Configure HyDE settings
-5. **Installation**: Install HyDE with selected options
+5. **AI Assistant**: Use natural language to configure HyDE
+6. **Installation**: Install HyDE with selected options
 
 ## Theme Preview System
 
@@ -86,6 +90,27 @@ The centralized settings manager provides:
 - Performance settings
 - Notification settings
 - Easy reset options for all settings
+
+## AI Configuration Assistant
+
+The AI Configuration Assistant provides:
+
+- Natural language interface for configuring HyDE
+- Intelligent suggestions based on user preferences
+- Real-time preview of configuration changes
+- Conversation history for complex configuration tasks
+
+To use the AI Assistant:
+1. Enter your OpenAI API key in the settings
+2. Type your configuration request in natural language
+3. Review the suggested changes
+4. Apply the changes to your configuration
+
+Example requests:
+- "Make my desktop more minimal"
+- "Switch to a dark theme with blue accents"
+- "Increase window border radius and enable transparency"
+- "Optimize performance for gaming"
 
 ## Contributing
 
