@@ -451,26 +451,139 @@ class HyDEGUI(QMainWindow):
         # Set initial splitter sizes
         splitter.setSizes([400, 400])
         
-        # API Key section
-        api_group = QGroupBox("AI API Settings")
-        api_layout = QFormLayout()
+        # AI Model Selection
+        model_group = QGroupBox("AI Model Settings")
+        model_layout = QFormLayout()
         
+        # Model type selection
+        self.model_type_combo = QComboBox()
+        self.model_type_combo.addItems(["OpenAI API", "Local Ollama"])
+        self.model_type_combo.currentIndexChanged.connect(self.update_model_options)
+        model_layout.addRow("Model Type:", self.model_type_combo)
+        
+        # Model selection
+        self.model_combo = QComboBox()
+        model_layout.addRow("Model:", self.model_combo)
+        
+        # Model description
+        self.model_description = QLabel()
+        self.model_description.setWordWrap(True)
+        model_layout.addRow("Description:", self.model_description)
+        
+        # API Key section (only shown for OpenAI)
         self.api_key_input = QLineEdit()
         self.api_key_input.setEchoMode(QLineEdit.EchoMode.Password)
         self.api_key_input.setText(self.ai_assistant.api_key)
-        api_layout.addRow("OpenAI API Key:", self.api_key_input)
+        model_layout.addRow("OpenAI API Key:", self.api_key_input)
         
-        save_key_btn = QPushButton("Save API Key")
-        save_key_btn.clicked.connect(self.save_api_key)
-        api_layout.addRow("", save_key_btn)
+        # Save settings button
+        save_settings_btn = QPushButton("Save Settings")
+        save_settings_btn.clicked.connect(self.save_ai_settings)
+        model_layout.addRow("", save_settings_btn)
         
-        api_group.setLayout(api_layout)
-        layout.addWidget(api_group)
+        # Ollama status (only shown for Ollama)
+        self.ollama_status = QLabel()
+        self.ollama_status.setWordWrap(True)
+        model_layout.addRow("Ollama Status:", self.ollama_status)
+        
+        model_group.setLayout(model_layout)
+        layout.addWidget(model_group)
         
         self.stacked_widget.addWidget(page)
         
+        # Initialize model options
+        self.update_model_options()
+        
         # Add initial welcome message
         self.add_ai_message("Hello! I'm your HyDE configuration assistant. How can I help you customize your desktop environment today?")
+    
+    def update_model_options(self):
+        """Update model options based on selected model type"""
+        model_type = self.model_type_combo.currentText()
+        
+        # Clear current model options
+        self.model_combo.clear()
+        
+        # Show/hide API key field based on model type
+        api_key_row = self.model_combo.parent().layout().rowCount() - 3  # Adjust based on your layout
+        api_key_label = self.model_combo.parent().layout().itemAt(api_key_row, QFormLayout.ItemRole.LabelRole).widget()
+        api_key_field = self.model_combo.parent().layout().itemAt(api_key_row, QFormLayout.ItemRole.FieldRole).widget()
+        
+        if model_type == "OpenAI API":
+            api_key_label.setVisible(True)
+            api_key_field.setVisible(True)
+            
+            # Add OpenAI models
+            for model in self.ai_assistant.available_models["openai"]:
+                self.model_combo.addItem(model["name"], model)
+            
+            # Set current model if available
+            if self.ai_assistant.model_type == "openai":
+                index = self.model_combo.findText(self.ai_assistant.model)
+                if index >= 0:
+                    self.model_combo.setCurrentIndex(index)
+        else:  # Ollama
+            api_key_label.setVisible(False)
+            api_key_field.setVisible(False)
+            
+            # Add Ollama models
+            for model in self.ai_assistant.available_models["ollama"]:
+                self.model_combo.addItem(model["name"], model)
+            
+            # Set current model if available
+            if self.ai_assistant.model_type == "ollama":
+                index = self.model_combo.findText(self.ai_assistant.model)
+                if index >= 0:
+                    self.model_combo.setCurrentIndex(index)
+            
+            # Update Ollama status
+            self.update_ollama_status()
+        
+        # Update model description
+        self.update_model_description()
+    
+    def update_model_description(self):
+        """Update the model description based on selected model"""
+        current_index = self.model_combo.currentIndex()
+        if current_index >= 0:
+            model_data = self.model_combo.itemData(current_index)
+            if model_data and "description" in model_data:
+                self.model_description.setText(model_data["description"])
+            else:
+                self.model_description.setText("No description available.")
+        else:
+            self.model_description.setText("No model selected.")
+    
+    def update_ollama_status(self):
+        """Update the Ollama status"""
+        if self.ai_assistant._is_ollama_installed():
+            self.ollama_status.setText("Ollama is installed on your system.")
+            self.ollama_status.setStyleSheet("color: green;")
+        else:
+            self.ollama_status.setText("Ollama is not installed. Please install Ollama to use local models.")
+            self.ollama_status.setStyleSheet("color: red;")
+    
+    def save_ai_settings(self):
+        """Save AI settings"""
+        model_type = self.model_type_combo.currentText()
+        model_name = self.model_combo.currentText()
+        
+        # Map UI model type to internal model type
+        internal_model_type = "openai" if model_type == "OpenAI API" else "ollama"
+        
+        # Save API key if using OpenAI
+        if internal_model_type == "openai":
+            api_key = self.api_key_input.text().strip()
+            if api_key:
+                self.ai_assistant.save_api_key(api_key)
+            else:
+                QMessageBox.warning(self, "Invalid API Key", "Please enter a valid API key.")
+                return
+        
+        # Save model settings
+        self.ai_assistant.set_model(model_name, internal_model_type)
+        
+        QMessageBox.information(self, "Settings Saved", "AI settings have been saved successfully.")
     
     def send_ai_request(self):
         """Send a request to the AI assistant"""
@@ -549,15 +662,6 @@ class HyDEGUI(QMainWindow):
         # Refresh the settings page if it exists
         if hasattr(self, 'settings_page'):
             self.refresh_settings_page()
-    
-    def save_api_key(self):
-        """Save the API key"""
-        api_key = self.api_key_input.text().strip()
-        if api_key:
-            self.ai_assistant.save_api_key(api_key)
-            QMessageBox.information(self, "API Key Saved", "Your API key has been saved successfully.")
-        else:
-            QMessageBox.warning(self, "Invalid API Key", "Please enter a valid API key.")
     
     def refresh_settings_page(self):
         """Refresh the settings page with current values"""

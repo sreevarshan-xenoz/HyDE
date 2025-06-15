@@ -93,24 +93,57 @@ The centralized settings manager provides:
 
 ## AI Configuration Assistant
 
-The AI Configuration Assistant provides:
+The AI Configuration Assistant provides a natural language interface for configuring your HyDE desktop environment. It can understand complex requests and suggest appropriate changes to your configuration.
+
+### Features
 
 - Natural language interface for configuring HyDE
-- Intelligent suggestions based on user preferences
+- Intelligent suggestions based on your preferences
 - Real-time preview of configuration changes
-- Conversation history for complex configuration tasks
+- Conversation history for complex tasks
+- Support for both OpenAI API and local models via Ollama
 
-To use the AI Assistant:
-1. Enter your OpenAI API key in the settings
-2. Type your configuration request in natural language
-3. Review the suggested changes
-4. Apply the changes to your configuration
+### Requirements
 
-Example requests:
-- "Make my desktop more minimal"
+- For OpenAI API:
+  - OpenAI API key
+- For local models:
+  - Ollama installed on your system
+  - One of the following models pulled in Ollama:
+    - Gemma:2B
+    - Phi-3
+    - Mistral
+
+### Usage
+
+1. Navigate to the AI Assistant page
+2. Select your preferred model type (OpenAI API or Local Ollama)
+3. If using OpenAI API, enter your API key
+4. Type your configuration request in natural language
+5. Review the suggested changes in the preview area
+6. Apply the changes if you're satisfied with them
+
+### Example Requests
+
+- "Make my desktop more minimal with rounded corners"
 - "Switch to a dark theme with blue accents"
-- "Increase window border radius and enable transparency"
-- "Optimize performance for gaming"
+- "Increase the border radius of windows"
+- "Change the font to a more modern sans-serif"
+- "Make the animations smoother"
+
+### Local Models
+
+The AI Assistant supports local models via Ollama, providing privacy and offline capabilities. To use local models:
+
+1. Install Ollama on your system (https://ollama.ai/)
+2. Pull the desired model using Ollama:
+   ```
+   ollama pull gemma:2b
+   ollama pull phi
+   ollama pull mistral
+   ```
+3. Select "Local Ollama" as the model type in the AI Assistant
+4. Choose your preferred model from the dropdown
 
 ## Contributing
 
