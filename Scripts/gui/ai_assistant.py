@@ -6,6 +6,8 @@ import re
 from pathlib import Path
 import requests
 import logging
+import subprocess
+import platform
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -16,10 +18,14 @@ class AIAssistant:
         self.settings_manager = settings_manager
         self.config_dir = Path("~/.config/hyde").expanduser()
         self.api_key_file = self.config_dir / "ai_api_key.txt"
+        self.model_config_file = self.config_dir / "ai_model_config.json"
         self.api_key = self._load_api_key()
         self.api_url = "https://api.openai.com/v1/chat/completions"
         self.model = "gpt-3.5-turbo"  # Default model
+        self.model_type = "openai"  # Default model type (openai or ollama)
         self.conversation_history = []
+        self.available_models = self._get_available_models()
+        self._load_model_config()
         
     def _load_api_key(self):
         """Load API key from file or environment variable"""
@@ -35,13 +41,104 @@ class AIAssistant:
             f.write(api_key)
         self.api_key = api_key
     
-    def set_model(self, model_name):
+    def _load_model_config(self):
+        """Load model configuration from file"""
+        if self.model_config_file.exists():
+            try:
+                with open(self.model_config_file, 'r') as f:
+                    config = json.load(f)
+                    self.model = config.get("model", self.model)
+                    self.model_type = config.get("model_type", self.model_type)
+            except Exception as e:
+                logger.error(f"Error loading model config: {str(e)}")
+    
+    def save_model_config(self):
+        """Save model configuration to file"""
+        self.config_dir.mkdir(parents=True, exist_ok=True)
+        config = {
+            "model": self.model,
+            "model_type": self.model_type
+        }
+        with open(self.model_config_file, 'w') as f:
+            json.dump(config, f, indent=4)
+    
+    def set_model(self, model_name, model_type="openai"):
         """Set the AI model to use"""
         self.model = model_name
+        self.model_type = model_type
+        self.save_model_config()
+    
+    def _get_available_models(self):
+        """Get available models based on the system"""
+        models = {
+            "openai": [
+                {"name": "gpt-3.5-turbo", "description": "Fast and efficient model for most tasks"},
+                {"name": "gpt-4", "description": "More powerful model for complex tasks (requires API key)"}
+            ],
+            "ollama": []
+        }
+        
+        # Check if Ollama is installed and get available models
+        if self._is_ollama_installed():
+            ollama_models = self._get_ollama_models()
+            if ollama_models:
+                models["ollama"] = ollama_models
+            else:
+                # Add default Ollama models if we couldn't fetch them
+                models["ollama"] = [
+                    {"name": "gemma:2b", "description": "Google's lightweight Gemma 2B model"},
+                    {"name": "phi:3", "description": "Microsoft's Phi-3 model"},
+                    {"name": "mistral", "description": "Mistral AI's 7B model"},
+                    {"name": "llama2", "description": "Meta's Llama 2 model"}
+                ]
+        
+        return models
+    
+    def _is_ollama_installed(self):
+        """Check if Ollama is installed on the system"""
+        try:
+            if platform.system() == "Windows":
+                # Check if ollama.exe exists in PATH
+                result = subprocess.run(["where", "ollama"], 
+                                       capture_output=True, text=True, check=False)
+                return result.returncode == 0
+            else:
+                # Check if ollama command exists
+                result = subprocess.run(["which", "ollama"], 
+                                       capture_output=True, text=True, check=False)
+                return result.returncode == 0
+        except Exception:
+            return False
+    
+    def _get_ollama_models(self):
+        """Get available Ollama models"""
+        try:
+            result = subprocess.run(["ollama", "list"], 
+                                   capture_output=True, text=True, check=False)
+            if result.returncode == 0:
+                # Parse the output to get model names
+                lines = result.stdout.strip().split('\n')
+                if len(lines) <= 1:  # Only header or empty
+                    return []
+                
+                models = []
+                for line in lines[1:]:  # Skip header
+                    parts = line.split()
+                    if parts:
+                        model_name = parts[0]
+                        models.append({
+                            "name": model_name,
+                            "description": f"Local Ollama model: {model_name}"
+                        })
+                return models
+        except Exception as e:
+            logger.error(f"Error getting Ollama models: {str(e)}")
+        
+        return []
     
     def process_request(self, user_input):
         """Process a natural language request and return a response"""
-        if not self.api_key:
+        if self.model_type == "openai" and not self.api_key:
             return {
                 "success": False,
                 "message": "API key not set. Please set your OpenAI API key in the settings.",
@@ -55,28 +152,83 @@ class AIAssistant:
             # Prepare the system message with context about available settings
             system_message = self._get_system_message()
             
-            # Prepare the API request
-            headers = {
-                "Content-Type": "application/json",
-                "Authorization": f"Bearer {self.api_key}"
-            }
+            if self.model_type == "openai":
+                return self._process_openai_request(system_message)
+            elif self.model_type == "ollama":
+                return self._process_ollama_request(system_message)
+            else:
+                return {
+                    "success": False,
+                    "message": f"Unsupported model type: {self.model_type}",
+                    "changes": {}
+                }
             
-            data = {
+        except Exception as e:
+            logger.error(f"Error processing AI request: {str(e)}")
+            return {
+                "success": False,
+                "message": f"Error: {str(e)}",
+                "changes": {}
+            }
+    
+    def _process_openai_request(self, system_message):
+        """Process a request using OpenAI API"""
+        # Prepare the API request
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {self.api_key}"
+        }
+        
+        data = {
+            "model": self.model,
+            "messages": [
+                {"role": "system", "content": system_message},
+                *self.conversation_history
+            ],
+            "temperature": 0.7
+        }
+        
+        # Make the API request
+        response = requests.post(self.api_url, headers=headers, json=data)
+        response.raise_for_status()
+        
+        # Parse the response
+        result = response.json()
+        ai_message = result["choices"][0]["message"]["content"]
+        
+        # Add AI response to conversation history
+        self.conversation_history.append({"role": "assistant", "content": ai_message})
+        
+        # Extract settings changes from the response
+        changes = self._extract_settings_changes(ai_message)
+        
+        return {
+            "success": True,
+            "message": ai_message,
+            "changes": changes
+        }
+    
+    def _process_ollama_request(self, system_message):
+        """Process a request using Ollama"""
+        try:
+            # Prepare the request data
+            request_data = {
                 "model": self.model,
                 "messages": [
                     {"role": "system", "content": system_message},
                     *self.conversation_history
                 ],
-                "temperature": 0.7
+                "stream": False
             }
             
-            # Make the API request
-            response = requests.post(self.api_url, headers=headers, json=data)
+            # Make the API request to Ollama
+            response = requests.post("http://localhost:11434/api/chat", 
+                                   json=request_data)
             response.raise_for_status()
             
             # Parse the response
             result = response.json()
-            ai_message = result["choices"][0]["message"]["content"]
+            ai_message = result["message"]["content"]
             
             # Add AI response to conversation history
             self.conversation_history.append({"role": "assistant", "content": ai_message})
@@ -90,11 +242,17 @@ class AIAssistant:
                 "changes": changes
             }
             
-        except Exception as e:
-            logger.error(f"Error processing AI request: {str(e)}")
+        except requests.exceptions.ConnectionError:
             return {
                 "success": False,
-                "message": f"Error: {str(e)}",
+                "message": "Could not connect to Ollama. Make sure Ollama is running on your system.",
+                "changes": {}
+            }
+        except Exception as e:
+            logger.error(f"Error processing Ollama request: {str(e)}")
+            return {
+                "success": False,
+                "message": f"Error with Ollama: {str(e)}",
                 "changes": {}
             }
     
