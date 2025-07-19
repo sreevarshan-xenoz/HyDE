@@ -1,1 +1,9 @@
 /* User custom styles */
+
+#custom-musicviz {
+  font-size: 1.5em;
+  color: #93cee9;
+  min-width: 100px;
+  padding: 0 10px;
+  transition: color 0.3s;
+}

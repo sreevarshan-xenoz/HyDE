@@ -36,7 +36,8 @@
       "clock",
       "custom/updates",
       "custom/keybindhint",
-      "custom/gamemode"
+      "custom/gamemode",
+      "custom/musicviz"
     ]
   },
   "group/leaf": {
@@ -63,5 +64,11 @@
   "group/pill-in#clipboard": {
     "orientation": "inherit",
     "modules": ["custom/clipboard"]
+  },
+  "custom/musicviz": {
+    "exec": "$XDG_CONFIG_HOME/waybar/scripts/musicviz.sh",
+    "interval": 0.1,
+    "return-type": "text",
+    "on-click": "playerctl play-pause"
   }
 }

@@ -1,0 +1,8 @@
+[general]
+bars = 16
+framerate = 60
+
+[output]
+method = fifo
+fifo_path = /tmp/cava-waybar
+data_format = ascii 
