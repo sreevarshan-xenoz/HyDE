@@ -251,7 +251,18 @@ EOF
         echo "[install] reload :: Hyprland"
     fi
 
-fi
+    # --- Waybar auto-restart workaround ---
+    HYPR_CONF="$HOME/.config/hypr/hyprland.conf"
+    if [ -f "$HYPR_CONF" ]; then
+        # Remove any previous workaround lines to avoid duplicates
+        sed -i '/^exec-once = waybar/d' "$HYPR_CONF"
+        sed -i '/^exec = sleep [0-9][0-9]* && pkill waybar && waybar/d' "$HYPR_CONF"
+        # Add the workaround at the end
+        echo "exec-once = waybar" >> "$HYPR_CONF"
+        echo "exec = sleep 5 && pkill waybar && waybar" >> "$HYPR_CONF"
+        print_log -g "[waybar] " "auto-restart workaround applied to hyprland.conf"
+    fi
+}
 
 #---------------------#
 # post-install script #
